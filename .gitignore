@@ -1,0 +1,46 @@
+# Dependencies
+node_modules/
+web/node_modules/
+.pnpm-store/
+
+# Build Outputs
+dist/
+web/dist/
+build/
+
+# Environment Variables & Secrets
+.env
+.env.local
+*.local
+credentials.json
+token.json
+
+# Databases & Local Storage
+*.db
+*.db-wal
+*.db-shm
+account_ai.db
+account_ai.db-wal
+account_ai.db-shm
+storage/
+.tmp/
+temp/
+
+# Python Caches & Virtualenvs
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+.venv/
+
+# OS & Editor Metadata
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+.vscode/
+.idea/

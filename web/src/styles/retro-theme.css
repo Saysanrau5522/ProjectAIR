@@ -1,0 +1,489 @@
+/* ==========================================================
+   PROJECT AIR: RETRO-INDUSTRIAL PIXEL ART THEME
+   Color Palette:
+   - Canvas Background: Midnight Purple (#1A162B)
+   - Primary Action: Vibrant Sunset Orange (#E2583E)
+   - Discrepancy Highlight: Pixel Sun Yellow (#F4C542)
+   - Borders & Accents: Neon Magenta (#D84282)
+   - Cyber Glow: Cyan (#00F0FF) & Matrix Green (#22C55E)
+   ========================================================== */
+
+:root {
+  --bg-main: #1A162B;
+  --bg-card: #231E38;
+  --bg-card-hover: #2B2545;
+  --bg-terminal: #110E1C;
+  --accent-orange: #E2583E;
+  --accent-orange-hover: #F06A50;
+  --accent-magenta: #D84282;
+  --accent-magenta-light: #FA58A0;
+  --pixel-yellow: #F4C542;
+  --pixel-yellow-dark: #3D320A;
+  --cyber-cyan: #00F0FF;
+  --matrix-green: #22C55E;
+  --matrix-green-dark: #0D381E;
+  --text-main: #F3F1F8;
+  --text-muted: #9E99BA;
+  --text-dark: #1A162B;
+  --border-blocky: 4px solid var(--accent-magenta);
+  --border-gold: 4px solid var(--pixel-yellow);
+  --shadow-pixel: 4px 4px 0px #000000;
+  --shadow-pixel-sm: 2px 2px 0px #000000;
+  --shadow-pixel-orange: 4px 4px 0px #7D2817;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body.retro-body {
+  background-color: var(--bg-main);
+  color: var(--text-main);
+  font-family: 'VT323', monospace;
+  font-size: 19px;
+  line-height: 1.4;
+  min-height: 100vh;
+  position: relative;
+  overflow-x: hidden;
+}
+
+/* Retro CRT Scanlines Effect */
+body.retro-body::after {
+  content: " ";
+  display: block;
+  position: fixed;
+  top: 0; left: 0; bottom: 0; right: 0;
+  background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.03), rgba(0, 255, 0, 0.01), rgba(0, 0, 255, 0.03));
+  z-index: 9999;
+  background-size: 100% 3px, 6px 100%;
+  pointer-events: none;
+  opacity: 0.7;
+}
+
+/* Typography Classes */
+.font-pixel {
+  font-family: 'Press Start 2P', monospace;
+}
+
+.font-tabular {
+  font-family: 'JetBrains Mono', monospace;
+  font-feature-settings: "tnum" 1, "zero" 1;
+}
+
+.font-retro {
+  font-family: 'VT323', monospace;
+}
+
+/* App Container */
+.app-container {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 16px 20px 60px;
+}
+
+/* Pixel Banner & HUD */
+.hud-header {
+  background-color: var(--bg-card);
+  border: var(--border-blocky);
+  box-shadow: var(--shadow-pixel);
+  margin-bottom: 24px;
+  position: relative;
+  overflow: hidden;
+}
+
+.hud-skyline-banner {
+  height: 180px;
+  width: 100%;
+  background-size: cover;
+  background-position: center;
+  position: relative;
+  border-bottom: 4px solid var(--accent-magenta);
+}
+
+.hud-skyline-overlay {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(26, 22, 43, 0.2) 0%, rgba(26, 22, 43, 0.85) 100%);
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  padding: 18px 24px;
+}
+
+.hud-title-box h1 {
+  font-size: 22px;
+  color: var(--pixel-yellow);
+  text-shadow: 3px 3px 0px #000, 0 0 10px rgba(244, 197, 66, 0.5);
+  margin-bottom: 6px;
+  letter-spacing: -1px;
+}
+
+.hud-subtitle {
+  font-size: 18px;
+  color: #FFF;
+  text-shadow: 2px 2px 0px #000;
+}
+
+.hud-controls {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+/* Gamified Role Selector */
+.role-badge-box {
+  background: var(--bg-terminal);
+  border: 2px solid var(--cyber-cyan);
+  padding: 6px 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.role-badge-box select {
+  background: transparent;
+  color: var(--cyber-cyan);
+  border: none;
+  font-family: 'Press Start 2P', monospace;
+  font-size: 10px;
+  outline: none;
+  cursor: pointer;
+}
+
+/* Metric Counter HUD Bar */
+.metrics-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 16px;
+  padding: 16px 20px;
+  background-color: var(--bg-card);
+}
+
+.metric-card {
+  background: var(--bg-terminal);
+  border: 3px solid #3B335A;
+  padding: 14px 16px;
+  box-shadow: var(--shadow-pixel-sm);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  position: relative;
+  transition: transform 0.1s, border-color 0.1s;
+}
+
+.metric-card:hover {
+  transform: translateY(-2px);
+  border-color: var(--accent-magenta);
+}
+
+.metric-card.warning-card {
+  border-color: var(--pixel-yellow);
+  background: var(--pixel-yellow-dark);
+}
+
+.metric-card.success-card {
+  border-color: var(--matrix-green);
+  background: var(--matrix-green-dark);
+}
+
+.metric-label {
+  font-size: 10px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.metric-val {
+  font-size: 26px;
+  font-weight: bold;
+  color: var(--text-main);
+}
+
+.metric-card.warning-card .metric-val {
+  color: var(--pixel-yellow);
+  text-shadow: 0 0 8px rgba(244, 197, 66, 0.4);
+}
+
+.metric-card.success-card .metric-val {
+  color: var(--matrix-green);
+  text-shadow: 0 0 8px rgba(34, 197, 94, 0.4);
+}
+
+/* Navigation Tabs */
+.nav-tab-bar {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 24px;
+  flex-wrap: wrap;
+}
+
+.nav-tab-btn {
+  background: var(--bg-card);
+  border: 3px solid #3B335A;
+  color: var(--text-muted);
+  padding: 12px 18px;
+  font-family: 'Press Start 2P', monospace;
+  font-size: 11px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  box-shadow: var(--shadow-pixel-sm);
+  transition: all 0.15s ease;
+}
+
+.nav-tab-btn:hover {
+  border-color: var(--accent-magenta);
+  color: var(--text-main);
+  transform: translateY(-2px);
+}
+
+.nav-tab-btn.active-tab {
+  background: var(--accent-magenta);
+  border-color: #FFF;
+  color: #FFF;
+  box-shadow: 4px 4px 0px #000;
+  transform: translateY(-2px);
+}
+
+.nav-tab-btn.active-tab.mobile-btn {
+  background: var(--accent-orange);
+  border-color: var(--pixel-yellow);
+}
+
+/* Pixel Buttons */
+.btn-pixel {
+  font-family: 'Press Start 2P', monospace;
+  font-size: 11px;
+  padding: 12px 18px;
+  border: 3px solid #000;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  text-transform: uppercase;
+  box-shadow: var(--shadow-pixel);
+  transition: transform 0.05s, box-shadow 0.05s;
+  user-select: none;
+}
+
+.btn-pixel:active {
+  transform: translate(2px, 2px);
+  box-shadow: 2px 2px 0px #000;
+}
+
+.btn-orange {
+  background-color: var(--accent-orange);
+  color: #FFF;
+}
+.btn-orange:hover {
+  background-color: var(--accent-orange-hover);
+}
+
+.btn-yellow {
+  background-color: var(--pixel-yellow);
+  color: var(--text-dark);
+}
+.btn-yellow:hover {
+  background-color: #FDE047;
+}
+
+.btn-magenta {
+  background-color: var(--accent-magenta);
+  color: #FFF;
+}
+.btn-magenta:hover {
+  background-color: var(--accent-magenta-light);
+}
+
+.btn-green {
+  background-color: var(--matrix-green);
+  color: #000;
+}
+
+.btn-sm {
+  font-size: 9px;
+  padding: 8px 12px;
+}
+
+/* Tables & Data Grids */
+.retro-card {
+  background-color: var(--bg-card);
+  border: var(--border-blocky);
+  box-shadow: var(--shadow-pixel);
+  padding: 20px;
+  margin-bottom: 24px;
+}
+
+.retro-table-wrapper {
+  overflow-x: auto;
+  margin-top: 14px;
+  border: 2px solid #3B335A;
+}
+
+.retro-table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+}
+
+.retro-table th {
+  background: var(--bg-terminal);
+  font-family: 'Press Start 2P', monospace;
+  font-size: 10px;
+  color: var(--cyber-cyan);
+  padding: 12px 14px;
+  border-bottom: 2px solid var(--accent-magenta);
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.retro-table td {
+  padding: 12px 14px;
+  border-bottom: 1px solid #2F294C;
+  font-size: 16px;
+  vertical-align: middle;
+}
+
+.retro-table tr:hover {
+  background-color: var(--bg-card-hover);
+}
+
+/* Aggressive Discrepancy Highlight */
+.row-discrepancy {
+  background-color: rgba(244, 197, 66, 0.12) !important;
+  border-left: 6px solid var(--pixel-yellow) !important;
+}
+
+.discrepancy-tag {
+  background: var(--pixel-yellow);
+  color: var(--text-dark);
+  font-family: 'Press Start 2P', monospace;
+  font-size: 9px;
+  padding: 4px 8px;
+  display: inline-block;
+  font-weight: bold;
+  border: 2px solid #000;
+}
+
+.badge-matched {
+  background: var(--matrix-green);
+  color: #000;
+  font-family: 'Press Start 2P', monospace;
+  font-size: 9px;
+  padding: 4px 8px;
+  border: 2px solid #000;
+}
+
+.badge-review {
+  background: #EAB308;
+  color: #000;
+  font-family: 'Press Start 2P', monospace;
+  font-size: 9px;
+  padding: 4px 8px;
+  border: 2px solid #000;
+}
+
+.badge-approved {
+  background: var(--cyber-cyan);
+  color: #000;
+  font-family: 'Press Start 2P', monospace;
+  font-size: 9px;
+  padding: 4px 8px;
+  border: 2px solid #000;
+}
+
+/* Modals */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(10, 8, 18, 0.85);
+  backdrop-filter: blur(4px);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 10000;
+  padding: 20px;
+}
+
+.modal-box {
+  background: var(--bg-card);
+  border: 4px solid var(--accent-magenta);
+  box-shadow: 8px 8px 0px #000;
+  max-width: 750px;
+  width: 100%;
+  max-height: 90vh;
+  overflow-y: auto;
+  padding: 24px;
+  position: relative;
+}
+
+.modal-box.warning-border {
+  border-color: var(--pixel-yellow);
+}
+
+/* Mobile PWA Portal Simulator */
+.mobile-pwa-container {
+  max-width: 480px;
+  margin: 0 auto;
+  background: var(--bg-terminal);
+  border: 4px solid var(--accent-orange);
+  box-shadow: 8px 8px 0px #000;
+  padding: 20px;
+}
+
+.scanner-viewfinder {
+  border: 3px dashed var(--accent-orange);
+  background: #181427;
+  padding: 30px 20px;
+  text-align: center;
+  position: relative;
+  overflow: hidden;
+  margin: 18px 0;
+}
+
+.scanner-laser {
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 3px;
+  background: var(--accent-orange);
+  box-shadow: 0 0 10px var(--accent-orange);
+  animation: laserSweep 2.2s infinite ease-in-out;
+}
+
+@keyframes laserSweep {
+  0% { top: 0%; opacity: 0.3; }
+  50% { top: 96%; opacity: 1; }
+  100% { top: 0%; opacity: 0.3; }
+}
+
+/* Offline Queue Banner */
+.offline-banner {
+  background: var(--accent-magenta);
+  color: #FFF;
+  padding: 8px 12px;
+  font-family: 'Press Start 2P', monospace;
+  font-size: 10px;
+  margin-bottom: 14px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 2px solid #000;
+}
+
+.audit-terminal {
+  background: #0D0A17;
+  border: 2px solid #2B2348;
+  padding: 14px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 14px;
+  color: #4ADE80;
+  max-height: 400px;
+  overflow-y: auto;
+}
