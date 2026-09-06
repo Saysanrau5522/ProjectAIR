@@ -178,7 +178,12 @@ async function handleApiRequest(request, url) {
         }))
       };
 
-      edgePos.unshift(newPo);
+      const existingPoIdx = edgePos.findIndex(p => p.po_number === body.po_number);
+      if (existingPoIdx >= 0) {
+        edgePos[existingPoIdx] = newPo;
+      } else {
+        edgePos.unshift(newPo);
+      }
 
       if (!edgeSites.some(s => s.site_id === siteId)) {
         edgeSites.unshift({
@@ -258,12 +263,15 @@ async function handleApiRequest(request, url) {
       const siteId = body.site_id;
       if (!siteId) return jsonResponse({ error: 'site_id is required' }, 400);
 
-      const poIdsToDelete = new Set(edgePos.filter(p => p.project_site_id === siteId).map(p => p.po_id));
-      edgeSites = edgeSites.filter(s => s.site_id !== siteId);
-      edgePos = edgePos.filter(p => p.project_site_id !== siteId);
-      edgeInventory = edgeInventory.filter(s => s.site_id !== siteId);
-      edgeReconciliations = edgeReconciliations.filter(r => !poIdsToDelete.has(r.po_id));
-      edgeDeliveryOrders = edgeDeliveryOrders.filter(d => d.site_id !== siteId && !poIdsToDelete.has(d.po_id));
+      const siteIdNorm = siteId.toUpperCase().trim();
+      const poIdsToDelete = new Set(edgePos.filter(p => (p.project_site_id || '').toUpperCase() === siteIdNorm).map(p => p.po_id));
+      const poNumsToDelete = new Set(edgePos.filter(p => (p.project_site_id || '').toUpperCase() === siteIdNorm).map(p => p.po_number));
+
+      edgeSites = edgeSites.filter(s => (s.site_id || '').toUpperCase() !== siteIdNorm);
+      edgePos = edgePos.filter(p => (p.project_site_id || '').toUpperCase() !== siteIdNorm);
+      edgeInventory = edgeInventory.filter(s => (s.site_id || '').toUpperCase() !== siteIdNorm);
+      edgeReconciliations = edgeReconciliations.filter(r => !poIdsToDelete.has(r.po_id) && !poNumsToDelete.has(r.po_number));
+      edgeDeliveryOrders = edgeDeliveryOrders.filter(d => (d.site_id || '').toUpperCase() !== siteIdNorm && !poIdsToDelete.has(d.po_id));
 
       edgeAuditLogs.unshift({
         log_id: `log-${Date.now()}`,
@@ -284,7 +292,7 @@ async function handleApiRequest(request, url) {
   if (path === '/inventory' && method === 'GET') {
     const siteFilter = url.searchParams.get('site_id');
     if (siteFilter && siteFilter !== 'ALL') {
-      return jsonResponse(edgeInventory.filter(s => s.site_id === siteFilter));
+      return jsonResponse(edgeInventory.filter(s => (s.site_id || '').toUpperCase() === siteFilter.toUpperCase()));
     }
     return jsonResponse(edgeInventory);
   }
@@ -295,8 +303,8 @@ async function handleApiRequest(request, url) {
       const stockId = body.stock_id;
       if (!stockId) return jsonResponse({ error: 'stock_id is required' }, 400);
 
-      const deletedStock = edgeInventory.find(s => s.stock_id === stockId);
-      edgeInventory = edgeInventory.filter(s => s.stock_id !== stockId);
+      const deletedStock = edgeInventory.find(s => s.stock_id === stockId || s.item_code === stockId);
+      edgeInventory = edgeInventory.filter(s => s.stock_id !== stockId && s.item_code !== stockId);
 
       edgeAuditLogs.unshift({
         log_id: `log-${Date.now()}`,

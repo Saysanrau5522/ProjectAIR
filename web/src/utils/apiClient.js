@@ -16,7 +16,9 @@ const STORAGE_KEYS = {
   AUDIT_LOGS: 'project_air_audit_logs_v2',
   INVENTORY: 'project_air_inventory_v2',
   DOS: 'project_air_dos_v2',
-  THRESHOLD_PRESETS: 'project_air_threshold_presets_v2'
+  THRESHOLD_PRESETS: 'project_air_threshold_presets_v2',
+  DELETED_SITES: 'project_air_deleted_sites_v2',
+  DELETED_SKUS: 'project_air_deleted_skus_v2'
 };
 
 // Generate a client-side HMAC-SHA256 compliant JWT token
@@ -98,12 +100,27 @@ function handleLocalFallback(endpoint, options = {}) {
 
   // 2. GET /pos
   if (endpoint === '/pos' && method === 'GET') {
-    return getStored(STORAGE_KEYS.POS, []);
+    const deletedSites = new Set(getStored(STORAGE_KEYS.DELETED_SITES, []).map(s => String(s).toUpperCase()));
+    const pos = getStored(STORAGE_KEYS.POS, []);
+    const seen = new Set();
+    const deduped = [];
+    for (const p of pos) {
+      const siteKey = (p.project_site_id || '').toUpperCase();
+      if (deletedSites.has(siteKey)) continue;
+      const poNum = (p.po_number || p.po_id || '').toUpperCase().trim();
+      if (!seen.has(poNum)) {
+        seen.add(poNum);
+        deduped.push(p);
+      }
+    }
+    return deduped;
   }
 
   // 3. GET /sites
   if (endpoint === '/sites' && method === 'GET') {
-    return getStored(STORAGE_KEYS.SITES, []);
+    const deletedSites = new Set(getStored(STORAGE_KEYS.DELETED_SITES, []).map(s => String(s).toUpperCase()));
+    const sites = getStored(STORAGE_KEYS.SITES, []);
+    return sites.filter(s => !deletedSites.has((s.site_id || '').toUpperCase()));
   }
 
   // 4. GET /reconciliations
@@ -118,13 +135,16 @@ function handleLocalFallback(endpoint, options = {}) {
 
   // 5b. GET /inventory
   if (endpoint.startsWith('/inventory') && method === 'GET') {
+    const deletedSites = new Set(getStored(STORAGE_KEYS.DELETED_SITES, []).map(s => String(s).toUpperCase()));
+    const deletedSkus = new Set(getStored(STORAGE_KEYS.DELETED_SKUS, []));
     let inventory = getStored(STORAGE_KEYS.INVENTORY, []);
     
-    // Auto-sync from POs if inventory is empty
-    if (inventory.length === 0) {
+    // Auto-sync from POs only if user has not explicitly purged inventory/SKUs
+    if (inventory.length === 0 && deletedSkus.size === 0) {
       const pos = getStored(STORAGE_KEYS.POS, []);
       const initialStocks = [];
       pos.forEach(po => {
+        if (deletedSites.has((po.project_site_id || '').toUpperCase())) return;
         (po.items || []).forEach((it, idx) => {
           const qty = Number(it.quantity || 1);
           const minReorder = Math.max(5, Math.round(qty * 0.2));
@@ -150,6 +170,14 @@ function handleLocalFallback(endpoint, options = {}) {
         setStored(STORAGE_KEYS.INVENTORY, inventory);
       }
     }
+
+    // Filter out deleted sites and deleted SKUs
+    inventory = inventory.filter(s => 
+      !deletedSites.has((s.site_id || '').toUpperCase()) &&
+      !deletedSkus.has(s.stock_id) &&
+      !deletedSkus.has(s.item_code) &&
+      !deletedSkus.has(`${s.site_id}-${s.item_code}`)
+    );
 
     // Check site_id filter in query param
     const match = endpoint.match(/[?&]site_id=([^&]+)/);
@@ -225,8 +253,28 @@ function handleLocalFallback(endpoint, options = {}) {
       }))
     };
 
-    // Update POs
-    const updatedPos = [newPo, ...pos];
+    // Un-tombstone site if it was previously marked as deleted
+    const deletedSites = getStored(STORAGE_KEYS.DELETED_SITES, []);
+    if (deletedSites.length > 0) {
+      setStored(STORAGE_KEYS.DELETED_SITES, deletedSites.filter(id => String(id).toUpperCase() !== siteId.toUpperCase()));
+    }
+
+    // Ensure site is in SITES
+    if (!sites.some(s => (s.site_id || '').toUpperCase() === siteId.toUpperCase())) {
+      const updatedSites = [{ site_id: siteId, project_name: siteName, location: `${siteName}, Malaysia` }, ...sites];
+      setStored(STORAGE_KEYS.SITES, updatedSites);
+    }
+
+    // Deduplicate against existing POs with the same po_number or po_id!
+    const targetPoNum = (body.po_number || poId).toUpperCase().trim();
+    const existingIdx = pos.findIndex(p => ((p.po_number || p.po_id || '').toUpperCase().trim() === targetPoNum));
+    let updatedPos;
+    if (existingIdx >= 0) {
+      updatedPos = [...pos];
+      updatedPos[existingIdx] = newPo;
+    } else {
+      updatedPos = [newPo, ...pos];
+    }
     setStored(STORAGE_KEYS.POS, updatedPos);
 
     // Update Inventory SKUs for this site with threshold presets
@@ -307,6 +355,16 @@ function handleLocalFallback(endpoint, options = {}) {
     const siteId = body.site_id;
     if (!siteId) return { error: 'site_id is required' };
 
+    const siteIdNorm = siteId.toUpperCase().trim();
+
+    // 1. Permanently register in DELETED_SITES tombstone list
+    const deletedSites = getStored(STORAGE_KEYS.DELETED_SITES, []);
+    const newDeletedSites = new Set(deletedSites.map(s => String(s).toUpperCase()));
+    newDeletedSites.add(siteIdNorm);
+    newDeletedSites.add(siteId.toLowerCase());
+    newDeletedSites.add(siteId);
+    setStored(STORAGE_KEYS.DELETED_SITES, Array.from(newDeletedSites));
+
     const sites = getStored(STORAGE_KEYS.SITES, []);
     const pos = getStored(STORAGE_KEYS.POS, []);
     const inv = getStored(STORAGE_KEYS.INVENTORY, []);
@@ -314,14 +372,15 @@ function handleLocalFallback(endpoint, options = {}) {
     const dos = getStored(STORAGE_KEYS.DOS, []);
     const logs = getStored(STORAGE_KEYS.AUDIT_LOGS, []);
 
-    const deletedPos = pos.filter(p => p.project_site_id === siteId);
-    const poIdsToDelete = new Set(deletedPos.map(p => p.po_id));
+    const deletedPos = pos.filter(p => (p.project_site_id || '').toUpperCase() === siteIdNorm);
+    const poIdsToDelete = new Set(deletedPos.map(p => (p.po_id || '').toUpperCase()));
+    const poNumsToDelete = new Set(deletedPos.map(p => (p.po_number || '').toUpperCase()));
 
-    setStored(STORAGE_KEYS.SITES, sites.filter(s => s.site_id !== siteId));
-    setStored(STORAGE_KEYS.POS, pos.filter(p => p.project_site_id !== siteId));
-    setStored(STORAGE_KEYS.INVENTORY, inv.filter(s => s.site_id !== siteId));
-    setStored(STORAGE_KEYS.RECONCILIATIONS, recs.filter(r => !poIdsToDelete.has(r.po_id)));
-    setStored(STORAGE_KEYS.DOS, dos.filter(d => d.site_id !== siteId && !poIdsToDelete.has(d.po_id)));
+    setStored(STORAGE_KEYS.SITES, sites.filter(s => (s.site_id || '').toUpperCase() !== siteIdNorm));
+    setStored(STORAGE_KEYS.POS, pos.filter(p => (p.project_site_id || '').toUpperCase() !== siteIdNorm));
+    setStored(STORAGE_KEYS.INVENTORY, inv.filter(s => (s.site_id || '').toUpperCase() !== siteIdNorm));
+    setStored(STORAGE_KEYS.RECONCILIATIONS, recs.filter(r => !poIdsToDelete.has((r.po_id || '').toUpperCase()) && !poNumsToDelete.has((r.po_number || '').toUpperCase())));
+    setStored(STORAGE_KEYS.DOS, dos.filter(d => (d.site_id || '').toUpperCase() !== siteIdNorm && !poIdsToDelete.has((d.po_id || '').toUpperCase())));
 
     const newLog = {
       log_id: `log-${Date.now()}`,
@@ -343,6 +402,18 @@ function handleLocalFallback(endpoint, options = {}) {
 
     const inv = getStored(STORAGE_KEYS.INVENTORY, []);
     const target = inv.find(s => s.stock_id === stockId);
+
+    // 1. Permanently register in DELETED_SKUS tombstone list
+    const deletedSkus = getStored(STORAGE_KEYS.DELETED_SKUS, []);
+    const newDeletedSkus = new Set(deletedSkus);
+    newDeletedSkus.add(stockId);
+    if (target?.item_code) {
+      newDeletedSkus.add(target.item_code);
+      newDeletedSkus.add(`${target.site_id}-${target.item_code}`);
+    }
+    setStored(STORAGE_KEYS.DELETED_SKUS, Array.from(newDeletedSkus));
+
+    // 2. Remove from local storage
     setStored(STORAGE_KEYS.INVENTORY, inv.filter(s => s.stock_id !== stockId));
 
     const logs = getStored(STORAGE_KEYS.AUDIT_LOGS, []);
@@ -698,34 +769,67 @@ export async function apiRequest(endpoint, options = {}) {
 
         // For GET requests, perform smart merge with local persistent storage
         if (method === 'GET') {
+          const deletedSites = new Set(getStored(STORAGE_KEYS.DELETED_SITES, []).map(s => String(s).toUpperCase()));
+          const deletedSkus = new Set(getStored(STORAGE_KEYS.DELETED_SKUS, []));
+
           if (endpoint === '/pos') {
             const localPos = getStored(STORAGE_KEYS.POS, []);
-            if (Array.isArray(remoteData) && remoteData.length > 0) {
-              const mergedMap = new Map();
-              localPos.forEach(p => mergedMap.set(p.po_id || p.po_number, p));
-              remoteData.forEach(p => mergedMap.set(p.po_id || p.po_number, p));
-              const merged = Array.from(mergedMap.values());
-              setStored(STORAGE_KEYS.POS, merged);
-              return merged;
-            } else if (localPos.length > 0) {
-              return localPos;
+            const mergedMap = new Map();
+
+            // KEY UNIQUELY BY po_number SO DUPLICATE ENTRIES FOR THE SAME PO ARE PERMANENTLY MERGED INTO 1!
+            localPos.forEach(p => {
+              const poNum = (p.po_number || p.po_id || '').toUpperCase().trim();
+              const siteKey = (p.project_site_id || '').toUpperCase();
+              if (poNum && !deletedSites.has(siteKey)) {
+                mergedMap.set(poNum, p);
+              }
+            });
+
+            if (Array.isArray(remoteData)) {
+              remoteData.forEach(p => {
+                const poNum = (p.po_number || p.po_id || '').toUpperCase().trim();
+                const siteKey = (p.project_site_id || '').toUpperCase();
+                if (poNum && !deletedSites.has(siteKey)) {
+                  const existing = mergedMap.get(poNum);
+                  mergedMap.set(poNum, {
+                    ...existing,
+                    ...p,
+                    po_number: p.po_number || existing?.po_number,
+                    po_id: p.po_id || existing?.po_id,
+                    items: p.items || existing?.items || []
+                  });
+                }
+              });
             }
-            return remoteData;
+
+            const merged = Array.from(mergedMap.values());
+            setStored(STORAGE_KEYS.POS, merged);
+            return merged;
           }
 
           if (endpoint === '/sites') {
             const localSites = getStored(STORAGE_KEYS.SITES, []);
-            if (Array.isArray(remoteData) && remoteData.length > 0) {
-              const mergedMap = new Map();
-              localSites.forEach(s => mergedMap.set(s.site_id, s));
-              remoteData.forEach(s => mergedMap.set(s.site_id, s));
-              const merged = Array.from(mergedMap.values());
-              setStored(STORAGE_KEYS.SITES, merged);
-              return merged;
-            } else if (localSites.length > 0) {
-              return localSites;
+            const mergedMap = new Map();
+
+            localSites.forEach(s => {
+              const sid = (s.site_id || '').toUpperCase().trim();
+              if (sid && !deletedSites.has(sid)) {
+                mergedMap.set(sid, s);
+              }
+            });
+
+            if (Array.isArray(remoteData)) {
+              remoteData.forEach(s => {
+                const sid = (s.site_id || '').toUpperCase().trim();
+                if (sid && !deletedSites.has(sid)) {
+                  mergedMap.set(sid, s);
+                }
+              });
             }
-            return remoteData;
+
+            const merged = Array.from(mergedMap.values());
+            setStored(STORAGE_KEYS.SITES, merged);
+            return merged;
           }
 
           if (endpoint === '/reconciliations') {
@@ -734,28 +838,50 @@ export async function apiRequest(endpoint, options = {}) {
               const mergedMap = new Map();
               localRecs.forEach(r => mergedMap.set(r.reconciliation_id, r));
               remoteData.forEach(r => mergedMap.set(r.reconciliation_id, r));
-              const merged = Array.from(mergedMap.values());
+              const merged = Array.from(mergedMap.values()).filter(r => !deletedSites.has((r.site_id || '').toUpperCase()));
               setStored(STORAGE_KEYS.RECONCILIATIONS, merged);
               return merged;
             } else if (localRecs.length > 0) {
-              return localRecs;
+              return localRecs.filter(r => !deletedSites.has((r.site_id || '').toUpperCase()));
             }
-            return remoteData;
+            return (remoteData || []).filter(r => !deletedSites.has((r.site_id || '').toUpperCase()));
           }
 
           if (endpoint.startsWith('/inventory')) {
             const localInv = getStored(STORAGE_KEYS.INVENTORY, []);
-            if (Array.isArray(remoteData) && remoteData.length > 0) {
-              const mergedMap = new Map();
-              localInv.forEach(i => mergedMap.set(i.stock_id || `${i.site_id}-${i.item_code}`, i));
-              remoteData.forEach(i => mergedMap.set(i.stock_id || `${i.site_id}-${i.item_code}`, i));
-              const merged = Array.from(mergedMap.values());
-              setStored(STORAGE_KEYS.INVENTORY, merged);
-              return merged;
-            } else if (localInv.length > 0) {
-              return localInv;
+            const mergedMap = new Map();
+
+            localInv.forEach(i => {
+              const siteKey = (i.site_id || '').toUpperCase();
+              if (!deletedSites.has(siteKey) &&
+                  !deletedSkus.has(i.stock_id) &&
+                  !deletedSkus.has(i.item_code) &&
+                  !deletedSkus.has(`${i.site_id}-${i.item_code}`)) {
+                mergedMap.set(i.stock_id || `${i.site_id}-${i.item_code}`, i);
+              }
+            });
+
+            if (Array.isArray(remoteData)) {
+              remoteData.forEach(i => {
+                const siteKey = (i.site_id || '').toUpperCase();
+                if (!deletedSites.has(siteKey) &&
+                    !deletedSkus.has(i.stock_id) &&
+                    !deletedSkus.has(i.item_code) &&
+                    !deletedSkus.has(`${i.site_id}-${i.item_code}`)) {
+                  mergedMap.set(i.stock_id || `${i.site_id}-${i.item_code}`, i);
+                }
+              });
             }
-            return remoteData;
+
+            const merged = Array.from(mergedMap.values());
+            setStored(STORAGE_KEYS.INVENTORY, merged);
+
+            const match = endpoint.match(/[?&]site_id=([^&]+)/);
+            const siteFilter = match ? decodeURIComponent(match[1]) : null;
+            if (siteFilter && siteFilter !== 'ALL') {
+              return merged.filter(s => s.site_id === siteFilter);
+            }
+            return merged;
           }
 
           if (endpoint === '/hud') {

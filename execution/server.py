@@ -377,14 +377,14 @@ class ProjectAIRRequestHandler(BaseHTTPRequestHandler):
         self._send_json(sites)
 
     def _handle_delete_site(self, body, actor_id):
-        site_id = body.get("site_id")
+        site_id = body.get("site_id", "").strip()
         if not site_id:
             raise ValueError("site_id is required")
 
         conn = get_connection()
         cursor = conn.cursor()
         try:
-            cursor.execute("SELECT po_id FROM purchase_orders WHERE project_site_id = ?", (site_id,))
+            cursor.execute("SELECT po_id FROM purchase_orders WHERE LOWER(project_site_id) = LOWER(?) OR LOWER(project_name) = LOWER(?)", (site_id, site_id))
             po_rows = cursor.fetchall()
             po_ids = [row["po_id"] for row in po_rows]
 
@@ -405,8 +405,9 @@ class ProjectAIRRequestHandler(BaseHTTPRequestHandler):
                 cursor.execute("DELETE FROM qr_tokens WHERE po_id = ?", (pid,))
                 cursor.execute("DELETE FROM purchase_orders WHERE po_id = ?", (pid,))
 
-            cursor.execute("DELETE FROM inventory_stocks WHERE site_id = ?", (site_id,))
-            cursor.execute("DELETE FROM qr_tokens WHERE site_id = ?", (site_id,))
+            cursor.execute("DELETE FROM purchase_orders WHERE LOWER(project_site_id) = LOWER(?) OR LOWER(project_name) = LOWER(?)", (site_id, site_id))
+            cursor.execute("DELETE FROM inventory_stocks WHERE LOWER(site_id) = LOWER(?)", (site_id,))
+            cursor.execute("DELETE FROM qr_tokens WHERE LOWER(site_id) = LOWER(?)", (site_id,))
 
             cursor.execute("""
                 INSERT INTO audit_logs (entity_type, entity_id, actor_id, actor_role, action, metadata)
@@ -522,15 +523,22 @@ class ProjectAIRRequestHandler(BaseHTTPRequestHandler):
             }]
 
         total_amount = sum(float(it.get("quantity", 0)) * float(it.get("unit_price", 0)) for it in line_items)
-        po_id = f"PO-{uuid.uuid4().hex[:6].upper()}"
-
-        conn = get_connection()
-        cursor = conn.cursor()
-
-        cursor.execute("""
-            INSERT INTO purchase_orders (po_id, po_number, project_site_id, project_name, supplier_name, issue_date, total_amount, status)
-            VALUES (?, ?, ?, ?, ?, ?, ?, 'OPEN')
-        """, (po_id, po_number, project_site_id, project_name, supplier_name, issue_date, round(total_amount, 2)))
+        cursor.execute("SELECT po_id FROM purchase_orders WHERE po_number = ?", (po_number,))
+        existing_po = cursor.fetchone()
+        if existing_po:
+            po_id = existing_po["po_id"]
+            cursor.execute("""
+                UPDATE purchase_orders 
+                SET project_site_id = ?, project_name = ?, supplier_name = ?, issue_date = ?, total_amount = ?
+                WHERE po_id = ?
+            """, (project_site_id, project_name, supplier_name, issue_date, round(total_amount, 2), po_id))
+            cursor.execute("DELETE FROM po_line_items WHERE po_id = ?", (po_id,))
+        else:
+            po_id = body.get("po_id") or f"PO-{uuid.uuid4().hex[:6].upper()}"
+            cursor.execute("""
+                INSERT INTO purchase_orders (po_id, po_number, project_site_id, project_name, supplier_name, issue_date, total_amount, status)
+                VALUES (?, ?, ?, ?, ?, ?, ?, 'OPEN')
+            """, (po_id, po_number, project_site_id, project_name, supplier_name, issue_date, round(total_amount, 2)))
 
         for idx, it in enumerate(line_items):
             qty = float(it.get("quantity", 1))
