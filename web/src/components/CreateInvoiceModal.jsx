@@ -1,53 +1,105 @@
 import React, { useState, useEffect } from 'react';
-import { FileText, CheckCircle2, Upload, Sparkles, X } from 'lucide-react';
+import { 
+  FileText, 
+  CheckCircle2, 
+  Upload, 
+  Sparkles, 
+  X, 
+  Plus, 
+  Trash2, 
+  AlertCircle, 
+  Building2 
+} from 'lucide-react';
 
 export default function CreateInvoiceModal({
   isOpen,
   onClose,
   pos = [],
-  onSubmitInvoice
+  onSubmitInvoice,
+  onOpenCreatePo
 }) {
   const [selectedPoId, setSelectedPoId] = useState(pos[0]?.po_id || '');
+  const [customPoNumber, setCustomPoNumber] = useState('PO-2026-001');
+  const [customSupplierName, setCustomSupplierName] = useState('MegaMix Concrete Sdn Bhd');
   const [invoiceNumber, setInvoiceNumber] = useState(`INV-${Math.floor(1000 + Math.random() * 9000)}`);
   const [invoiceDate, setInvoiceDate] = useState(new Date().toISOString().split('T')[0]);
-  const [lineItems, setLineItems] = useState([]);
+  
+  // Default with at least 1 editable line item so user can immediately type details
+  const [lineItems, setLineItems] = useState([
+    {
+      description: 'Ready-Mix Concrete Grade 30',
+      quantity_billed: 50,
+      unit: 'Cu M',
+      unit_price: 110
+    }
+  ]);
+
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isExtracting, setIsExtracting] = useState(false);
   const [extractedFile, setExtractedFile] = useState(null);
 
+  const hasExistingPos = pos && pos.length > 0;
+
   useEffect(() => {
-    if (selectedPoId) {
+    if (selectedPoId && selectedPoId !== '__MANUAL__') {
       const targetPo = pos.find(p => p.po_id === selectedPoId);
-      if (targetPo && targetPo.line_items) {
+      if (targetPo && targetPo.line_items && targetPo.line_items.length > 0) {
         setLineItems(targetPo.line_items.map(it => ({
           description: it.description,
           quantity_billed: it.quantity,
           unit_price: it.unit_price,
-          unit: it.unit
+          unit: it.unit || 'Units'
         })));
       }
-    } else if (pos.length > 0) {
+    } else if (hasExistingPos && !selectedPoId) {
       setSelectedPoId(pos[0].po_id);
     }
   }, [selectedPoId, pos]);
 
   if (!isOpen) return null;
 
-  const targetPo = pos.find(p => p.po_id === selectedPoId) || pos[0];
+  const targetPo = pos.find(p => p.po_id === selectedPoId);
+  const activeSupplierName = (hasExistingPos && targetPo && selectedPoId !== '__MANUAL__') 
+    ? targetPo.supplier_name 
+    : customSupplierName;
 
-  const handleQtyChange = (idx, val) => {
+  // Add line item
+  const handleAddItem = () => {
+    setLineItems(prev => [
+      ...prev,
+      {
+        description: '',
+        quantity_billed: 1,
+        unit: 'Units',
+        unit_price: 0
+      }
+    ]);
+  };
+
+  // Remove line item
+  const handleRemoveItem = (index) => {
+    if (lineItems.length === 1) {
+      // Keep at least 1 row, just clear fields
+      setLineItems([{ description: '', quantity_billed: 1, unit: 'Units', unit_price: 0 }]);
+      return;
+    }
+    setLineItems(prev => prev.filter((_, i) => i !== index));
+  };
+
+  // Change field in line item
+  const handleItemChange = (index, field, value) => {
     const updated = [...lineItems];
-    updated[idx].quantity_billed = Number(val);
+    if (field === 'quantity_billed' || field === 'unit_price') {
+      updated[index][field] = Number(value) || 0;
+    } else {
+      updated[index][field] = value;
+    }
     setLineItems(updated);
   };
 
-  const handlePriceChange = (idx, val) => {
-    const updated = [...lineItems];
-    updated[idx].unit_price = Number(val);
-    setLineItems(updated);
-  };
-
-  const totalBilled = lineItems.reduce((acc, it) => acc + ((Number(it.quantity_billed) || 0) * (Number(it.unit_price) || 0)), 0);
+  const totalBilled = lineItems.reduce((acc, it) => {
+    return acc + ((Number(it.quantity_billed) || 0) * (Number(it.unit_price) || 0));
+  }, 0);
 
   const handleExtractInvoice = async (filename, samplePoId = null) => {
     setIsExtracting(true);
@@ -62,10 +114,20 @@ export default function CreateInvoiceModal({
         })
       });
       const data = await res.json();
-      if (data.invoice_number) setInvoiceNumber(data.invoice_number);
-      if (data.invoice_date) setInvoiceDate(data.invoice_date);
-      if (data.line_items) setLineItems(data.line_items);
-      if (samplePoId) setSelectedPoId(samplePoId);
+      if (data.extraction) {
+        const ext = data.extraction;
+        if (ext.invoice_number) setInvoiceNumber(ext.invoice_number);
+        if (ext.invoice_date) setInvoiceDate(ext.invoice_date);
+        if (ext.supplier_name) setCustomSupplierName(ext.supplier_name);
+        if (ext.line_items && ext.line_items.length > 0) {
+          setLineItems(ext.line_items.map(it => ({
+            description: it.description || '',
+            quantity_billed: Number(it.quantity_billed) || 1,
+            unit: it.unit || 'Units',
+            unit_price: Number(it.unit_price) || 0
+          })));
+        }
+      }
       setExtractedFile(filename);
     } catch (err) {
       alert('AI extraction error: ' + err.message);
@@ -83,16 +145,26 @@ export default function CreateInvoiceModal({
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    const validItems = lineItems.filter(it => it.description.trim() !== '');
+    if (validItems.length === 0) {
+      alert('Please enter at least one line item with a description.');
+      return;
+    }
+
+    const effectivePoId = (hasExistingPos && selectedPoId && selectedPoId !== '__MANUAL__')
+      ? selectedPoId
+      : customPoNumber.trim();
+
     setIsSubmitting(true);
     try {
       await onSubmitInvoice({
-        po_id: selectedPoId,
-        invoice_number: invoiceNumber,
-        supplier_name: targetPo?.supplier_name,
+        po_id: effectivePoId,
+        invoice_number: invoiceNumber.trim(),
+        supplier_name: activeSupplierName.trim(),
         invoice_date: invoiceDate,
-        line_items: lineItems
+        line_items: validItems
       });
-      alert(`Invoice #${invoiceNumber} ingested! 3-Way Match executed.`);
+      alert(`Invoice #${invoiceNumber} ingested! 3-Way Match executed against ${effectivePoId}.`);
       onClose();
     } catch (err) {
       alert('Failed to log invoice: ' + err.message);
@@ -103,19 +175,19 @@ export default function CreateInvoiceModal({
 
   return (
     <div className="modal-overlay">
-      <div className="modal-box" style={{ maxWidth: '820px' }}>
+      <div className="modal-box" style={{ maxWidth: '840px', width: '100%' }}>
         {/* Header */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', paddingBottom: '14px', borderBottom: '1px solid rgba(255, 255, 255, 0.08)' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '18px', paddingBottom: '14px', borderBottom: '1px solid rgba(255, 255, 255, 0.08)' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: 'rgba(255, 255, 255, 0.06)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <FileText size={16} color="var(--text-primary)" />
+            <div style={{ width: '34px', height: '34px', borderRadius: '8px', background: 'rgba(59, 130, 246, 0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <FileText size={18} color="#3b82f6" />
             </div>
             <div>
               <h2 style={{ fontSize: '16px', fontWeight: '600', color: 'var(--text-primary)', margin: 0 }}>
                 Ingest Supplier Invoice
               </h2>
-              <p style={{ fontSize: '13px', color: 'var(--text-muted)', margin: 0 }}>
-                Accounts Payable Intake &bull; Automated 3-Way Document Matching
+              <p style={{ fontSize: '12px', color: 'var(--text-muted)', margin: 0 }}>
+                Accounts Payable Intake &bull; Automated 3-Way Cross-Check
               </p>
             </div>
           </div>
@@ -128,11 +200,33 @@ export default function CreateInvoiceModal({
           </button>
         </div>
 
+        {/* Missing PO Alert Banner (Guides User to Create PO) */}
+        {!hasExistingPos && (
+          <div style={{ background: 'rgba(245, 158, 11, 0.08)', border: '1px solid rgba(245, 158, 11, 0.25)', borderRadius: '8px', padding: '12px 14px', marginBottom: '18px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '10px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', color: '#f59e0b' }}>
+              <AlertCircle size={16} style={{ flexShrink: 0 }} />
+              <span>
+                <strong>No committed Purchase Orders found.</strong> 3-Way matching cross-references invoices against an authorized PO.
+              </span>
+            </div>
+            {onOpenCreatePo && (
+              <button 
+                type="button" 
+                className="btn btn-outline btn-xs"
+                onClick={onOpenCreatePo}
+                style={{ borderColor: '#f59e0b', color: '#f59e0b', whiteSpace: 'nowrap' }}
+              >
+                + Issue Purchase Order First
+              </button>
+            )}
+          </div>
+        )}
+
         {/* AI Vision Dropzone */}
-        <div style={{ background: '#141418', border: '1px dashed rgba(255, 255, 255, 0.15)', borderRadius: '10px', padding: '16px', marginBottom: '20px' }}>
+        <div style={{ background: '#141418', border: '1px dashed rgba(255, 255, 255, 0.15)', borderRadius: '10px', padding: '14px 16px', marginBottom: '20px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
             <div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', fontWeight: '600', color: '#fafafa', marginBottom: '4px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', fontWeight: '600', color: '#fafafa', marginBottom: '3px' }}>
                 <Sparkles size={14} color="#38bdf8" />
                 AI Invoice Vision Extractor
               </div>
@@ -141,16 +235,26 @@ export default function CreateInvoiceModal({
               </p>
             </div>
 
-            <div style={{ display: 'flex', gap: '8px' }}>
-              <label className="btn-modern btn-modern-secondary btn-sm" style={{ cursor: 'pointer' }}>
-                <Upload size={12} /> Upload PDF
-                <input type="file" accept=".pdf,image/*" onChange={handleFileUpload} style={{ display: 'none' }} />
+            <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+              <label 
+                className="btn btn-outline btn-sm"
+                style={{ cursor: 'pointer', margin: 0 }}
+              >
+                <Upload size={13} />
+                <span>Upload PDF / Photo</span>
+                <input 
+                  type="file" 
+                  accept="image/*,.pdf" 
+                  onChange={handleFileUpload} 
+                  style={{ display: 'none' }}
+                />
               </label>
+
               <button 
                 type="button" 
-                className="btn-modern btn-modern-secondary btn-sm"
+                className="btn btn-secondary btn-sm"
+                onClick={() => handleExtractInvoice('supplier_tax_invoice.pdf', pos[0]?.po_id)}
                 disabled={isExtracting}
-                onClick={() => handleExtractInvoice('Supplier_Invoice_Sample.pdf', pos[0]?.po_id)}
               >
                 {isExtracting ? 'Extracting...' : 'Auto-Extract Sample'}
               </button>
@@ -158,32 +262,72 @@ export default function CreateInvoiceModal({
           </div>
 
           {extractedFile && (
-            <div style={{ marginTop: '12px', padding: '8px 12px', background: 'rgba(16, 185, 129, 0.1)', border: '1px solid rgba(16, 185, 129, 0.25)', borderRadius: '6px', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', color: '#10b981' }}>
+            <div style={{ marginTop: '10px', padding: '6px 10px', background: 'rgba(16, 185, 129, 0.1)', border: '1px solid rgba(16, 185, 129, 0.25)', borderRadius: '6px', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', color: '#10b981' }}>
               <CheckCircle2 size={14} />
-              Extracted from <strong>{extractedFile}</strong> with 98.4% OCR Confidence.
+              Extracted from <strong>{extractedFile}</strong> with 98.4% OCR Confidence. You can edit any field below.
             </div>
           )}
         </div>
 
         <form onSubmit={handleSubmit}>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '14px', marginBottom: '20px' }}>
+          {/* Top Form Grid */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '14px', marginBottom: '20px' }}>
+            {/* Target PO Selector / Input */}
             <div>
               <label style={{ fontSize: '12px', fontWeight: '500', color: 'var(--text-secondary)', display: 'block', marginBottom: '6px' }}>
                 Target Purchase Order
               </label>
-              <select 
-                value={selectedPoId}
-                onChange={(e) => setSelectedPoId(e.target.value)}
-                style={{ width: '100%', background: '#18181b', color: '#fafafa', border: '1px solid rgba(255, 255, 255, 0.1)', borderRadius: '6px', padding: '8px 10px', fontSize: '13px' }}
-              >
-                {pos.map(p => (
-                  <option key={p.po_id} value={p.po_id}>
-                    {p.po_number} - {p.supplier_name}
-                  </option>
-                ))}
-              </select>
+              {hasExistingPos ? (
+                <select 
+                  value={selectedPoId}
+                  onChange={(e) => setSelectedPoId(e.target.value)}
+                  className="form-select"
+                  style={{ width: '100%', background: '#18181b', color: '#fafafa', border: '1px solid rgba(255, 255, 255, 0.1)', borderRadius: '6px', padding: '8px 10px', fontSize: '13px' }}
+                >
+                  {pos.map(p => (
+                    <option key={p.po_id} value={p.po_id}>
+                      {p.po_number} &bull; {p.supplier_name}
+                    </option>
+                  ))}
+                  <option value="__MANUAL__">+ Enter Manual PO Reference</option>
+                </select>
+              ) : (
+                <input 
+                  type="text"
+                  value={customPoNumber}
+                  onChange={(e) => setCustomPoNumber(e.target.value)}
+                  placeholder="e.g. PO-2026-001"
+                  style={{ width: '100%', background: '#18181b', color: '#fafafa', border: '1px solid rgba(255, 255, 255, 0.1)', borderRadius: '6px', padding: '8px 10px', fontSize: '13px', fontFamily: 'var(--font-mono)' }}
+                  required
+                />
+              )}
             </div>
 
+            {/* Supplier / Vendor Name */}
+            <div>
+              <label style={{ fontSize: '12px', fontWeight: '500', color: 'var(--text-secondary)', display: 'block', marginBottom: '6px' }}>
+                Supplier / Trade Contractor
+              </label>
+              {hasExistingPos && selectedPoId !== '__MANUAL__' && targetPo ? (
+                <input 
+                  type="text"
+                  value={targetPo.supplier_name}
+                  disabled
+                  style={{ width: '100%', background: '#141418', color: '#a1a1aa', border: '1px solid rgba(255, 255, 255, 0.08)', borderRadius: '6px', padding: '8px 10px', fontSize: '13px' }}
+                />
+              ) : (
+                <input 
+                  type="text"
+                  value={customSupplierName}
+                  onChange={(e) => setCustomSupplierName(e.target.value)}
+                  placeholder="e.g. MegaMix Concrete Sdn Bhd"
+                  style={{ width: '100%', background: '#18181b', color: '#fafafa', border: '1px solid rgba(255, 255, 255, 0.1)', borderRadius: '6px', padding: '8px 10px', fontSize: '13px' }}
+                  required
+                />
+              )}
+            </div>
+
+            {/* Invoice Number */}
             <div>
               <label style={{ fontSize: '12px', fontWeight: '500', color: 'var(--text-secondary)', display: 'block', marginBottom: '6px' }}>
                 Supplier Invoice Number
@@ -192,11 +336,13 @@ export default function CreateInvoiceModal({
                 type="text"
                 value={invoiceNumber}
                 onChange={(e) => setInvoiceNumber(e.target.value)}
+                placeholder="e.g. INV-8821"
                 style={{ width: '100%', background: '#18181b', color: '#fafafa', border: '1px solid rgba(255, 255, 255, 0.1)', borderRadius: '6px', padding: '8px 10px', fontSize: '13px', fontFamily: 'var(--font-mono)' }}
                 required
               />
             </div>
 
+            {/* Invoice Billing Date */}
             <div>
               <label style={{ fontSize: '12px', fontWeight: '500', color: 'var(--text-secondary)', display: 'block', marginBottom: '6px' }}>
                 Invoice Billing Date
@@ -211,88 +357,147 @@ export default function CreateInvoiceModal({
             </div>
           </div>
 
-          {/* Line Items Table */}
+          {/* Line Items Table with Add/Remove Functionality */}
           <div style={{ marginBottom: '20px' }}>
-            <span style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)', display: 'block', marginBottom: '10px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-              Billed Line Items
-            </span>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+              <span style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                Billed Line Items ({lineItems.length})
+              </span>
+              <button 
+                type="button" 
+                className="btn btn-secondary btn-xs"
+                onClick={handleAddItem}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+              >
+                <Plus size={12} /> Add Line Item
+              </button>
+            </div>
             
             <div style={{ border: '1px solid rgba(255, 255, 255, 0.08)', borderRadius: '8px', overflow: 'hidden' }}>
-              <table className="modern-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
-                <thead>
-                  <tr>
-                    <th>Description</th>
-                    <th style={{ width: '110px', textAlign: 'right' }}>Billed Qty</th>
-                    <th style={{ width: '80px' }}>Unit</th>
-                    <th style={{ width: '110px', textAlign: 'right' }}>Unit Price</th>
-                    <th style={{ width: '120px', textAlign: 'right' }}>Line Total</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {lineItems.map((it, idx) => (
-                    <tr key={idx}>
-                      <td style={{ color: '#fafafa', fontWeight: '500' }}>
-                        {it.description}
-                      </td>
-                      <td style={{ textAlign: 'right' }}>
-                        <input 
-                          type="number"
-                          step="any"
-                          value={it.quantity_billed}
-                          onChange={(e) => handleQtyChange(idx, e.target.value)}
-                          style={{ width: '100%', background: '#18181b', color: '#fff', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '4px', padding: '5px 7px', fontSize: '12px', textAlign: 'right', fontFamily: 'var(--font-mono)' }}
-                        />
-                      </td>
-                      <td style={{ color: 'var(--text-muted)', fontSize: '12px' }}>
-                        {it.unit || 'Units'}
-                      </td>
-                      <td style={{ textAlign: 'right' }}>
-                        <input 
-                          type="number"
-                          step="any"
-                          value={it.unit_price}
-                          onChange={(e) => handlePriceChange(idx, e.target.value)}
-                          style={{ width: '100%', background: '#18181b', color: '#fff', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '4px', padding: '5px 7px', fontSize: '12px', textAlign: 'right', fontFamily: 'var(--font-mono)' }}
-                        />
-                      </td>
-                      <td style={{ textAlign: 'right', fontFamily: 'var(--font-mono)', fontWeight: '600', color: '#fafafa' }}>
-                        ${((Number(it.quantity_billed) || 0) * (Number(it.unit_price) || 0)).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                      </td>
+              <div className="modern-table-wrapper">
+                <table className="modern-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
+                  <thead>
+                    <tr>
+                      <th style={{ minWidth: '220px' }}>Material / Service Description</th>
+                      <th style={{ width: '110px', textAlign: 'right' }}>Billed Qty</th>
+                      <th style={{ width: '100px' }}>Unit</th>
+                      <th style={{ width: '120px', textAlign: 'right' }}>Unit Price (RM)</th>
+                      <th style={{ width: '120px', textAlign: 'right' }}>Line Total (RM)</th>
+                      <th style={{ width: '50px', textAlign: 'center' }}></th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {lineItems.map((it, idx) => {
+                      const lineTotal = (Number(it.quantity_billed) || 0) * (Number(it.unit_price) || 0);
+                      return (
+                        <tr key={idx}>
+                          <td>
+                            <input 
+                              type="text"
+                              placeholder="e.g. Ready-Mix Concrete Grade 30, Rebar Y16"
+                              value={it.description}
+                              onChange={(e) => handleItemChange(idx, 'description', e.target.value)}
+                              style={{ width: '100%', background: '#18181b', color: '#fafafa', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '4px', padding: '6px 8px', fontSize: '13px' }}
+                              required
+                            />
+                          </td>
+                          <td style={{ textAlign: 'right' }}>
+                            <input 
+                              type="number"
+                              step="any"
+                              min="0"
+                              value={it.quantity_billed}
+                              onChange={(e) => handleItemChange(idx, 'quantity_billed', e.target.value)}
+                              style={{ width: '100%', background: '#18181b', color: '#fff', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '4px', padding: '6px 8px', fontSize: '12px', textAlign: 'right', fontFamily: 'var(--font-mono)' }}
+                              required
+                            />
+                          </td>
+                          <td>
+                            <input 
+                              type="text"
+                              placeholder="Cu M / Bags"
+                              value={it.unit}
+                              onChange={(e) => handleItemChange(idx, 'unit', e.target.value)}
+                              style={{ width: '100%', background: '#18181b', color: '#fff', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '4px', padding: '6px 8px', fontSize: '12px' }}
+                            />
+                          </td>
+                          <td style={{ textAlign: 'right' }}>
+                            <input 
+                              type="number"
+                              step="any"
+                              min="0"
+                              value={it.unit_price}
+                              onChange={(e) => handleItemChange(idx, 'unit_price', e.target.value)}
+                              style={{ width: '100%', background: '#18181b', color: '#fff', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '4px', padding: '6px 8px', fontSize: '12px', textAlign: 'right', fontFamily: 'var(--font-mono)' }}
+                              required
+                            />
+                          </td>
+                          <td style={{ textAlign: 'right', fontFamily: 'var(--font-mono)', fontWeight: '600', color: '#fafafa' }}>
+                            RM {lineTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          </td>
+                          <td style={{ textAlign: 'center' }}>
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveItem(idx)}
+                              style={{ background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer', padding: '4px', opacity: 0.8 }}
+                              title="Remove item"
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* Add item button banner */}
+            <div style={{ marginTop: '10px' }}>
+              <button 
+                type="button" 
+                className="btn btn-outline btn-xs"
+                onClick={handleAddItem}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+              >
+                <Plus size={13} /> + Add Another Item (e.g. Delivery Surcharge, Rebar, Simen)
+              </button>
             </div>
           </div>
 
+          {/* Summary Box */}
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#18181b', padding: '14px 18px', borderRadius: '8px', border: '1px solid rgba(255, 255, 255, 0.08)', marginBottom: '22px' }}>
             <div>
               <span style={{ fontSize: '11px', color: 'var(--text-muted)', display: 'block', textTransform: 'uppercase' }}>Supplier Vendor:</span>
-              <div style={{ color: '#fafafa', fontSize: '14px', fontWeight: '600' }}>{targetPo?.supplier_name || 'Vendor'}</div>
+              <div style={{ color: '#fafafa', fontSize: '14px', fontWeight: '600' }}>
+                {activeSupplierName}
+              </div>
             </div>
 
             <div style={{ textAlign: 'right' }}>
               <span style={{ fontSize: '11px', color: 'var(--text-muted)', display: 'block', textTransform: 'uppercase' }}>Total Billed Claim:</span>
               <div style={{ fontSize: '20px', fontWeight: '700', color: '#fafafa', fontFamily: 'var(--font-mono)' }}>
-                ${totalBilled.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                RM {totalBilled.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
               </div>
             </div>
           </div>
 
+          {/* Action Buttons */}
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
             <button 
               type="button" 
-              className="btn-modern btn-modern-secondary" 
+              className="btn btn-secondary" 
               onClick={onClose}
             >
               Cancel
             </button>
             <button 
               type="submit" 
-              className="btn-modern btn-modern-primary" 
-              disabled={isSubmitting}
+              className="btn btn-primary"
+              disabled={isSubmitting || totalBilled === 0}
             >
-              {isSubmitting ? 'Matching...' : 'Submit & Run 3-Way Match'}
+              {isSubmitting ? 'Processing 3-Way Match...' : 'Submit & Run 3-Way Match'}
             </button>
           </div>
         </form>

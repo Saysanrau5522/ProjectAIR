@@ -452,6 +452,10 @@ export default function App() {
         onClose={() => setIsCreateInvoiceOpen(false)}
         pos={pos}
         onSubmitInvoice={handleCreateInvoice}
+        onOpenCreatePo={() => {
+          setIsCreateInvoiceOpen(false);
+          setIsCreatePoOpen(true);
+        }}
       />
     </div>
   );
