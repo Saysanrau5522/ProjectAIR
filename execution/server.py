@@ -35,6 +35,7 @@ from execution.gl_coding_service import predict_gl_code
 from execution.multilingual_service import standardize_text
 from execution.clean_db import purge_mock_data
 from execution.seed_data import seed
+from execution.storage_service import save_document, get_document_bytes
 
 PORT = int(os.environ.get("PORT", 8000))
 STORAGE_DIR = Path(os.environ.get("STORAGE_DIR", "./storage"))
@@ -117,13 +118,14 @@ class ProjectAIRRequestHandler(BaseHTTPRequestHandler):
 
             elif path.startswith("/storage/"):
                 filename = path.split("/")[-1]
-                file_path = STORAGE_DIR / filename
-                if file_path.exists():
-                    self._set_headers(200, "image/png")
-                    with open(file_path, "rb") as f:
-                        self.wfile.write(f.read())
-                else:
+                try:
+                    content = get_document_bytes(filename)
+                    self._set_headers(200, "image/jpeg")
+                    self.wfile.write(content)
+                except FileNotFoundError:
                     self._send_error("File not found", 404)
+                except Exception as ex:
+                    self._send_error(f"Error fetching file: {ex}", 500)
 
             else:
                 self._send_error("Endpoint not found", 404)
@@ -531,11 +533,7 @@ class ProjectAIRRequestHandler(BaseHTTPRequestHandler):
             
         file_hash = f"hash_{uuid.uuid4().hex[:12]}"
         storage_filename = f"do_{file_hash}_{filename}"
-        storage_path = STORAGE_DIR / storage_filename
-        with open(storage_path, "wb") as f:
-            f.write(img_bytes)
-            
-        image_url = f"/storage/{storage_filename}"
+        _, image_url = save_document(img_bytes, storage_filename, content_type="image/jpeg")
         
         # Pass metadata for fallback mock parsing if key not present
         pos = execute_query("SELECT * FROM purchase_orders WHERE po_id = ?", (po_id,))
