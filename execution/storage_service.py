@@ -8,6 +8,17 @@ import os
 from pathlib import Path
 from typing import Tuple
 
+# Load .env file automatically
+ENV_FILE = Path(__file__).resolve().parent.parent / ".env"
+if ENV_FILE.exists():
+    with open(ENV_FILE, "r", encoding="utf-8") as _f:
+        for _line in _f:
+            _line = _line.strip()
+            if not _line or _line.startswith("#") or "=" not in _line:
+                continue
+            _k, _v = _line.split("=", 1)
+            os.environ.setdefault(_k.strip(), _v.strip().strip("'\""))
+
 STORAGE_PROVIDER = os.environ.get("STORAGE_PROVIDER", "local").lower()
 LOCAL_STORAGE_DIR = Path(os.environ.get("STORAGE_DIR", "./storage"))
 LOCAL_STORAGE_DIR.mkdir(parents=True, exist_ok=True)
