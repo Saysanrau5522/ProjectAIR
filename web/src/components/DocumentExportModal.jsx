@@ -33,9 +33,9 @@ export default function DocumentExportModal({
   const [copied, setCopied] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const qrCanvasRef = useRef(null);
+  const [saveSuccess, setSaveSuccess] = useState(false);
 
-  // Customizable document parameters
-  const [customConfig, setCustomConfig] = useState({
+  const DEFAULT_CONFIG = {
     companyName: 'PROJECT AIR INFRASTRUCTURE SDN BHD',
     registrationNo: 'SSM Reg: 202401099882 (1548231-X) • SST ID: W10-2401-32000412',
     address: 'Level 28, Menara Binjai, No 2 Jalan Binjai, 50450 Kuala Lumpur, Malaysia',
@@ -43,11 +43,54 @@ export default function DocumentExportModal({
     qsRole: 'Senior Quantity Surveyor (QS) • CIDB Certified',
     directorName: 'Ir. Tan Chee Keong (P.Eng, MIEM)',
     directorRole: 'Project Director & Authorized Signatory',
+    supplierName: '',
     siteNotes: 'Certified site material intake summary prepared in compliance with CIDB site verification tolerances and PAM Contract 2018 guidelines.'
+  };
+
+  // Customizable document parameters loaded from persistent storage
+  const [customConfig, setCustomConfig] = useState(() => {
+    try {
+      const saved = localStorage.getItem('project_air_doc_config');
+      if (saved) {
+        return { ...DEFAULT_CONFIG, ...JSON.parse(saved) };
+      }
+    } catch (e) {
+      console.warn('Failed to parse doc config from localStorage', e);
+    }
+    return DEFAULT_CONFIG;
   });
 
   const handleConfigChange = (field, value) => {
-    setCustomConfig(prev => ({ ...prev, [field]: value }));
+    setCustomConfig(prev => {
+      const updated = { ...prev, [field]: value };
+      try {
+        localStorage.setItem('project_air_doc_config', JSON.stringify(updated));
+      } catch (e) {
+        console.warn('Failed to save doc config to localStorage', e);
+      }
+      return updated;
+    });
+  };
+
+  const handleSaveExplicit = () => {
+    try {
+      localStorage.setItem('project_air_doc_config', JSON.stringify(customConfig));
+      setSaveSuccess(true);
+      setTimeout(() => setSaveSuccess(false), 2500);
+    } catch (e) {
+      console.warn('Failed to save config', e);
+    }
+  };
+
+  const handleResetDefaults = () => {
+    if (window.confirm('Reset document template settings to default values?')) {
+      setCustomConfig(DEFAULT_CONFIG);
+      try {
+        localStorage.removeItem('project_air_doc_config');
+      } catch (e) {}
+      setSaveSuccess(true);
+      setTimeout(() => setSaveSuccess(false), 2000);
+    }
   };
 
   useEffect(() => {
@@ -199,26 +242,75 @@ export default function DocumentExportModal({
 
         {/* Inline Template Editor Drawer */}
         {isEditing && (
-          <div className="no-print" style={{ background: '#141418', borderBottom: '1px solid rgba(255, 255, 255, 0.1)', padding: '14px 20px', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '12px' }}>
-            <div>
-              <label style={{ fontSize: '11px', color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>Company Legal Name</label>
-              <input type="text" value={customConfig.companyName} onChange={e => handleConfigChange('companyName', e.target.value)} style={{ width: '100%', background: '#18181b', color: '#fff', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '4px', padding: '6px 8px', fontSize: '12px' }} />
+          <div className="no-print" style={{ background: '#141418', borderBottom: '1px solid rgba(255, 255, 255, 0.1)', padding: '16px 20px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', flexWrap: 'wrap', gap: '10px' }}>
+              <div>
+                <h4 style={{ margin: 0, fontSize: '13px', fontWeight: '600', color: '#fff', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <Edit3 size={14} color="#38bdf8" /> Document &amp; Signatory Parameters
+                </h4>
+                <p style={{ margin: 0, fontSize: '11px', color: 'var(--text-muted)' }}>
+                  Edits update all live previews immediately and are saved permanently to your device storage.
+                </p>
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <button 
+                  type="button" 
+                  className="btn-modern btn-modern-secondary btn-sm"
+                  onClick={handleResetDefaults}
+                  title="Reset all fields to original standard company defaults"
+                >
+                  Reset Defaults
+                </button>
+                <button 
+                  type="button" 
+                  className="btn-modern btn-modern-primary btn-sm"
+                  onClick={handleSaveExplicit}
+                  style={{ background: '#10b981', borderColor: '#10b981', color: '#fff' }}
+                  title="Save template parameters permanently to browser"
+                >
+                  {saveSuccess ? <Check size={13} /> : <CheckCircle2 size={13} />} {saveSuccess ? 'Saved to Browser!' : 'Save Changes'}
+                </button>
+              </div>
             </div>
-            <div>
-              <label style={{ fontSize: '11px', color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>SSM Reg &amp; SST Number</label>
-              <input type="text" value={customConfig.registrationNo} onChange={e => handleConfigChange('registrationNo', e.target.value)} style={{ width: '100%', background: '#18181b', color: '#fff', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '4px', padding: '6px 8px', fontSize: '12px' }} />
-            </div>
-            <div>
-              <label style={{ fontSize: '11px', color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>Senior QS Signatory Name</label>
-              <input type="text" value={customConfig.qsName} onChange={e => handleConfigChange('qsName', e.target.value)} style={{ width: '100%', background: '#18181b', color: '#fff', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '4px', padding: '6px 8px', fontSize: '12px' }} />
-            </div>
-            <div>
-              <label style={{ fontSize: '11px', color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>Project Director Name</label>
-              <input type="text" value={customConfig.directorName} onChange={e => handleConfigChange('directorName', e.target.value)} style={{ width: '100%', background: '#18181b', color: '#fff', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '4px', padding: '6px 8px', fontSize: '12px' }} />
-            </div>
-            <div style={{ gridColumn: '1 / -1' }}>
-              <label style={{ fontSize: '11px', color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>Site Inspection / Valuation Progress Remarks</label>
-              <input type="text" value={customConfig.siteNotes} onChange={e => handleConfigChange('siteNotes', e.target.value)} style={{ width: '100%', background: '#18181b', color: '#fff', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '4px', padding: '6px 8px', fontSize: '12px' }} />
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '12px' }}>
+              <div>
+                <label style={{ fontSize: '11px', color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>Company Legal Name</label>
+                <input type="text" value={customConfig.companyName} onChange={e => handleConfigChange('companyName', e.target.value)} style={{ width: '100%', background: '#18181b', color: '#fff', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '4px', padding: '6px 8px', fontSize: '12px' }} />
+              </div>
+              <div>
+                <label style={{ fontSize: '11px', color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>SSM Reg &amp; SST Tax Number</label>
+                <input type="text" value={customConfig.registrationNo} onChange={e => handleConfigChange('registrationNo', e.target.value)} style={{ width: '100%', background: '#18181b', color: '#fff', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '4px', padding: '6px 8px', fontSize: '12px' }} />
+              </div>
+              <div>
+                <label style={{ fontSize: '11px', color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>Registered HQ Address</label>
+                <input type="text" value={customConfig.address} onChange={e => handleConfigChange('address', e.target.value)} style={{ width: '100%', background: '#18181b', color: '#fff', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '4px', padding: '6px 8px', fontSize: '12px' }} />
+              </div>
+              <div>
+                <label style={{ fontSize: '11px', color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>Project Director / Signatory Name</label>
+                <input type="text" value={customConfig.directorName} onChange={e => handleConfigChange('directorName', e.target.value)} style={{ width: '100%', background: '#18181b', color: '#fff', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '4px', padding: '6px 8px', fontSize: '12px' }} />
+              </div>
+              <div>
+                <label style={{ fontSize: '11px', color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>Director Role / Designation</label>
+                <input type="text" value={customConfig.directorRole} onChange={e => handleConfigChange('directorRole', e.target.value)} style={{ width: '100%', background: '#18181b', color: '#fff', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '4px', padding: '6px 8px', fontSize: '12px' }} />
+              </div>
+              <div>
+                <label style={{ fontSize: '11px', color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>Senior QS / Inspector Signatory Name</label>
+                <input type="text" value={customConfig.qsName} onChange={e => handleConfigChange('qsName', e.target.value)} style={{ width: '100%', background: '#18181b', color: '#fff', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '4px', padding: '6px 8px', fontSize: '12px' }} />
+              </div>
+              <div>
+                <label style={{ fontSize: '11px', color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>Senior QS Role / Designation</label>
+                <input type="text" value={customConfig.qsRole} onChange={e => handleConfigChange('qsRole', e.target.value)} style={{ width: '100%', background: '#18181b', color: '#fff', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '4px', padding: '6px 8px', fontSize: '12px' }} />
+              </div>
+              <div>
+                <label style={{ fontSize: '11px', color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>Supplier / Vendor Override (Optional)</label>
+                <input type="text" placeholder={activePo?.supplier_name || 'Use default PO supplier'} value={customConfig.supplierName} onChange={e => handleConfigChange('supplierName', e.target.value)} style={{ width: '100%', background: '#18181b', color: '#fff', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '4px', padding: '6px 8px', fontSize: '12px' }} />
+              </div>
+              <div style={{ gridColumn: '1 / -1' }}>
+                <label style={{ fontSize: '11px', color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>Site Inspection / Valuation Progress Remarks</label>
+                <input type="text" value={customConfig.siteNotes} onChange={e => handleConfigChange('siteNotes', e.target.value)} style={{ width: '100%', background: '#18181b', color: '#fff', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '4px', padding: '6px 8px', fontSize: '12px' }} />
+              </div>
             </div>
           </div>
         )}
@@ -252,7 +344,7 @@ export default function DocumentExportModal({
                 <div className="doc-parties-grid">
                   <div className="doc-party-card">
                     <div className="doc-section-label">SUPPLIER / VENDOR</div>
-                    <div className="doc-party-name">{activePo?.supplier_name || 'Registered Vendor'}</div>
+                    <div className="doc-party-name">{customConfig.supplierName || activePo?.supplier_name || 'Registered Vendor'}</div>
                     <div className="doc-party-detail">Vendor ID: VEND-{Math.abs((activePo?.supplier_name || 'V').split('').reduce((a, b) => a + b.charCodeAt(0), 0))}</div>
                     <div className="doc-party-detail">Payment Terms: 30 Days Net from Verified 3-Way Match</div>
                     <div className="doc-party-detail">Delivery Target: Immediate Dispatch to Specified Job Site</div>
@@ -354,15 +446,15 @@ export default function DocumentExportModal({
                 <div className="doc-signature-row">
                   <div className="doc-signature-box">
                     <div className="doc-sign-line" />
-                    <div className="doc-sign-name">Authorized Procurement Officer</div>
-                    <div className="doc-sign-role">Maker Authorization &bull; Project AIR HQ</div>
+                    <div className="doc-sign-name">{customConfig.directorName || 'Ir. Tan Chee Keong (P.Eng, MIEM)'}</div>
+                    <div className="doc-sign-role">{customConfig.directorRole || 'Project Director & Authorized Signatory'}</div>
                     <div className="doc-stamp verified">ELECTRONICALLY AUTHORIZED</div>
                   </div>
 
                   <div className="doc-signature-box">
                     <div className="doc-sign-line" />
-                    <div className="doc-sign-name">Vendor Acceptance Signature</div>
-                    <div className="doc-sign-role">Authorized Signatory &amp; Company Stamp</div>
+                    <div className="doc-sign-name">{customConfig.qsName || 'En. Muhammad Farhan Bin Azhar (B.Sc QS)'}</div>
+                    <div className="doc-sign-role">{customConfig.qsRole || 'Senior QS & Authorized Signatory'}</div>
                     <div className="doc-stamp-placeholder">Official Stamp &amp; Date</div>
                   </div>
                 </div>
@@ -423,7 +515,7 @@ export default function DocumentExportModal({
                     <tbody>
                       <tr>
                         <td className="doc-mono">{activePo?.po_number || 'PO-2026-ALL'}</td>
-                        <td><strong>{activePo?.supplier_name || 'Authorized Suppliers'}</strong></td>
+                        <td><strong>{customConfig.supplierName || activePo?.supplier_name || 'Authorized Suppliers'}</strong></td>
                         <td>Direct Construction Materials &bull; Pre-Mixed Concrete / Rebar / Ballast</td>
                         <td style={{ textAlign: 'right' }} className="doc-mono doc-bold">
                           RM {(activePo?.total_amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
@@ -446,7 +538,7 @@ export default function DocumentExportModal({
                   </div>
                   <div className="doc-weighbridge-subgrid" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '12px', fontSize: '12px', marginTop: '16px' }}>
                     <div>DO Delivery Docket No: ________________________</div>
-                    <div>Supervisor Signature: ________________________</div>
+                    <div>Supervisor / Intake Officer: <strong>{customConfig.qsName || 'Certified Site Gatekeeper'}</strong></div>
                   </div>
                 </div>
               </div>
@@ -457,7 +549,7 @@ export default function DocumentExportModal({
               <div className="doc-content-layout">
                 <div className="doc-header-row">
                   <div>
-                    <div className="doc-company-title">PROJECT AIR AUDIT &amp; ACCOUNTS PAYABLE</div>
+                    <div className="doc-company-title">{customConfig.companyName} AUDIT &amp; ACCOUNTS PAYABLE</div>
                     <div className="doc-subtext">Automated 3-Way Match Verification &amp; Disbursement Certificate</div>
                     <div className="doc-subtext">Internal Audit Control Standard ISO-9001 / Malaysian FRS Compliant</div>
                   </div>
@@ -477,56 +569,53 @@ export default function DocumentExportModal({
                   <div className="doc-party-card">
                     <div className="doc-section-label">1. PURCHASE ORDER (PO)</div>
                     <div className="doc-party-name">{reconciliation?.po_number || activePo?.po_number}</div>
-                    <div className="doc-party-detail">Vendor: {reconciliation?.supplier_name || activePo?.supplier_name}</div>
-                    <div className="doc-party-detail">Authorized Amount: RM {(reconciliation?.po_total_amount || activePo?.total_amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</div>
+                    <div className="doc-party-detail">Vendor: {customConfig.supplierName || reconciliation?.supplier_name || activePo?.supplier_name}</div>
                   </div>
 
                   <div className="doc-party-card">
-                    <div className="doc-section-label">2. PHYSICAL RECEIVING (DO)</div>
-                    <div className="doc-party-name">{activeSite.project_name}</div>
-                    <div className="doc-party-detail">Intake Gateway: Gate #1 Weighbridge</div>
-                    <div className="doc-party-detail">Security Token: Verified Cryptographic Pass</div>
+                    <div className="doc-section-label">2. DELIVERY ORDER (DO)</div>
+                    <div className="doc-party-name">{reconciliation?.do_number || 'DO-VERIFIED'}</div>
+                    <div className="doc-party-detail">Intake Site: {reconciliation?.project_name || activeSite?.project_name}</div>
                   </div>
 
                   <div className="doc-party-card">
-                    <div className="doc-section-label">3. VENDOR INVOICE CLAIM</div>
-                    <div className="doc-party-name">Inv #{reconciliation?.invoice_number || 'INV-PENDING'}</div>
-                    <div className="doc-party-detail">Billed Amount: RM {(reconciliation?.invoice_total_amount || activePo?.total_amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</div>
-                    <div className="doc-party-detail">Status: {reconciliation?.match_status || 'PENDING'}</div>
+                    <div className="doc-section-label">3. SUPPLIER INVOICE (INV)</div>
+                    <div className="doc-party-name">{reconciliation?.invoice_number || 'INV-AUDITED'}</div>
+                    <div className="doc-party-detail">Claimed Amount: RM {(reconciliation?.invoice_total_amount || reconciliation?.invoice_amount || activePo?.total_amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</div>
                   </div>
                 </div>
 
                 {/* Audit Line Comparison */}
-                <div className="doc-section-label">LINE-ITEM RECONCILIATION &amp; OVERPAYMENT PREVENTION BREAKDOWN</div>
+                <div className="doc-section-label">LINE-ITEM TRIANGULATION &amp; SHORT-PAY DETERMINATION</div>
                 <div className="doc-table-wrapper">
                   <table className="doc-table" style={{ marginBottom: '20px' }}>
                     <thead>
                       <tr>
-                        <th>Item &amp; Description</th>
-                        <th style={{ textAlign: 'right' }}>PO Rate</th>
-                        <th style={{ textAlign: 'right' }}>PO Auth Qty</th>
-                        <th style={{ textAlign: 'right' }}>DO Received</th>
-                        <th style={{ textAlign: 'right' }}>Inv Billed</th>
-                        <th style={{ textAlign: 'right' }}>Variance</th>
-                        <th style={{ textAlign: 'right' }}>Payable (RM)</th>
+                        <th>Material Description</th>
+                        <th style={{ width: '80px', textAlign: 'right' }}>PO Qty</th>
+                        <th style={{ width: '90px', textAlign: 'right' }}>PO Rate (RM)</th>
+                        <th style={{ width: '90px', textAlign: 'right' }}>DO Intake Qty</th>
+                        <th style={{ width: '90px', textAlign: 'right' }}>Inv Billed Qty</th>
+                        <th style={{ width: '90px', textAlign: 'right' }}>Variance</th>
+                        <th style={{ width: '110px', textAlign: 'right' }}>Disbursable (RM)</th>
                       </tr>
                     </thead>
                     <tbody>
                       {(reconciliation?.items && reconciliation.items.length > 0) ? (
-                        reconciliation.items.map((it, idx) => {
-                          const variance = (it.cumulative_billed_qty || 0) - (it.cumulative_delivered_qty || 0);
-                          const rate = it.po_unit_price || 0;
-                          const payable = (it.verified_payable_amount !== undefined) ? it.verified_payable_amount : Math.min(it.cumulative_delivered_qty || 0, it.cumulative_billed_qty || 0) * rate;
+                        reconciliation.items.map((item, idx) => {
+                          const poQty = Number(item.ordered_qty || item.quantity || 0);
+                          const deliveredQty = Number(item.cumulative_delivered_qty || item.delivered_qty || 0);
+                          const billedQty = Number(item.cumulative_billed_qty || item.billed_qty || 0);
+                          const variance = item.variance_qty !== undefined ? item.variance_qty : (billedQty - deliveredQty);
+                          const payable = item.verified_payable_amount !== undefined ? item.verified_payable_amount : Math.min(deliveredQty, billedQty) * (item.po_unit_price || 0);
+
                           return (
                             <tr key={idx}>
-                              <td>
-                                <strong>{it.description || it.item_code}</strong>
-                                <div style={{ fontSize: '10px', color: '#64748b' }}>{it.item_code}</div>
-                              </td>
-                              <td style={{ textAlign: 'right' }} className="doc-mono">RM {rate.toFixed(2)}</td>
-                              <td style={{ textAlign: 'right' }} className="doc-mono">{it.po_quantity || 0}</td>
-                              <td style={{ textAlign: 'right' }} className="doc-mono" style={{ color: '#059669', fontWeight: '600' }}>{it.cumulative_delivered_qty || 0}</td>
-                              <td style={{ textAlign: 'right' }} className="doc-mono">{it.cumulative_billed_qty || 0}</td>
+                              <td><strong>{item.description}</strong></td>
+                              <td style={{ textAlign: 'right' }} className="doc-mono">{poQty}</td>
+                              <td style={{ textAlign: 'right' }} className="doc-mono">{Number(item.po_unit_price || 0).toFixed(2)}</td>
+                              <td style={{ textAlign: 'right' }} className="doc-mono">{deliveredQty}</td>
+                              <td style={{ textAlign: 'right' }} className="doc-mono">{billedQty}</td>
                               <td style={{ textAlign: 'right' }} className="doc-mono" style={{ color: variance > 0 ? '#dc2626' : '#64748b', fontWeight: variance > 0 ? '700' : 'normal' }}>
                                 {variance > 0 ? `+${variance} (Over)` : variance < 0 ? `${variance}` : '0.00'}
                               </td>
@@ -575,15 +664,15 @@ export default function DocumentExportModal({
                 <div className="doc-signature-row">
                   <div className="doc-signature-box">
                     <div className="doc-sign-line" />
-                    <div className="doc-sign-name">{reconciliation?.resolved_by || 'maker_user_01'}</div>
-                    <div className="doc-sign-role">Maker Sign-off &bull; Reconciliation Verified</div>
+                    <div className="doc-sign-name">{customConfig.qsName || reconciliation?.resolved_by || 'maker_user_01'}</div>
+                    <div className="doc-sign-role">{customConfig.qsRole || 'Maker Sign-off • Reconciliation Verified'}</div>
                     <div className="doc-stamp verified">MAKER VERIFIED</div>
                   </div>
 
                   <div className="doc-signature-box">
                     <div className="doc-sign-line" />
-                    <div className="doc-sign-name">{reconciliation?.checker_approved_by || 'Finance Controller'}</div>
-                    <div className="doc-sign-role">Checker Sign-off &bull; Payment Released</div>
+                    <div className="doc-sign-name">{customConfig.directorName || reconciliation?.checker_approved_by || 'Finance Controller'}</div>
+                    <div className="doc-sign-role">{customConfig.directorRole || 'Checker Sign-off • Payment Released'}</div>
                     <div className="doc-stamp verified">CHECKER AUTHORIZED</div>
                   </div>
                 </div>
