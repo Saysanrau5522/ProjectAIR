@@ -10,6 +10,7 @@ import {
   AlertCircle, 
   Building2 
 } from 'lucide-react';
+import { getApiBase } from '../utils/token';
 
 export default function CreateInvoiceModal({
   isOpen,
@@ -105,7 +106,8 @@ export default function CreateInvoiceModal({
     setIsExtracting(true);
     const poToUse = samplePoId || selectedPoId;
     try {
-      const res = await fetch('http://localhost:8000/api/invoices/extract', {
+      const apiBase = getApiBase();
+      const res = await fetch(`${apiBase}/invoices/extract`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

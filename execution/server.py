@@ -147,7 +147,18 @@ class ProjectAIRRequestHandler(BaseHTTPRequestHandler):
                 po_id = body.get("po_id")
                 site_id = body.get("site_id")
                 expires_days = body.get("expires_days", 7)
-                token = generate_scoped_token(po_id, site_id, expires_in_seconds=86400 * expires_days, created_by=actor_id)
+                po_records = execute_query("SELECT * FROM purchase_orders WHERE po_id = ?", (po_id,))
+                po_rec = po_records[0] if po_records else {}
+                token = generate_scoped_token(
+                    po_id, 
+                    site_id, 
+                    expires_in_seconds=86400 * expires_days, 
+                    created_by=actor_id,
+                    po_number=po_rec.get("po_number"),
+                    project_name=po_rec.get("project_name"),
+                    supplier_name=po_rec.get("supplier_name"),
+                    total_amount=po_rec.get("total_amount")
+                )
                 
                 conn = get_connection()
                 conn.execute("""
@@ -419,7 +430,16 @@ class ProjectAIRRequestHandler(BaseHTTPRequestHandler):
             ))
 
         # Automatically generate a signed scoped QR token for this PO & Site!
-        token = generate_scoped_token(po_id, project_site_id, expires_in_seconds=86400 * 14, created_by=actor_id)
+        token = generate_scoped_token(
+            po_id, 
+            project_site_id, 
+            expires_in_seconds=86400 * 14, 
+            created_by=actor_id,
+            po_number=po_number,
+            project_name=project_name,
+            supplier_name=supplier_name,
+            total_amount=round(total_amount, 2)
+        )
         cursor.execute("""
             INSERT INTO qr_tokens (token_id, token_string, po_id, site_id, expires_at, created_by)
             VALUES (?, ?, ?, ?, datetime('now', '+14 days'), ?)

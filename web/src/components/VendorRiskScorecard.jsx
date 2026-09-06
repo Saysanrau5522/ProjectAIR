@@ -12,7 +12,9 @@ import {
   TrendingDown
 } from 'lucide-react';
 
-const API_BASE = 'http://localhost:8000/api';
+import { getApiBase } from '../utils/token';
+
+const API_BASE = getApiBase();
 
 export default function VendorRiskScorecard() {
   const [vendors, setVendors] = useState([]);

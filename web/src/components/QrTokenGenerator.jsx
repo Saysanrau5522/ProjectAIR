@@ -109,12 +109,13 @@ export default function QrTokenGenerator({
           </div>
           
           <div style={{ display: 'flex', gap: '20px', alignItems: 'center', flexWrap: 'wrap' }}>
-            <div style={{ background: '#fff', padding: '8px', borderRadius: '8px', display: 'inline-block' }}>
+            <div style={{ background: '#fff', padding: '10px', borderRadius: '8px', display: 'inline-block', textAlign: 'center' }}>
               <canvas 
                 ref={(el) => {
                   if (el && generatedResult?.token) {
-                    QRCode.toCanvas(el, generatedResult.token, {
-                      width: 130,
+                    const qrUrl = `${window.location.origin}/?tab=MOBILE_PWA&token=${encodeURIComponent(generatedResult.token)}`;
+                    QRCode.toCanvas(el, qrUrl, {
+                      width: 150,
                       margin: 1,
                       color: { dark: '#09090b', light: '#ffffff' }
                     }).catch(e => console.error(e));
@@ -122,6 +123,9 @@ export default function QrTokenGenerator({
                 }} 
                 style={{ display: 'block' }}
               />
+              <span style={{ fontSize: '10px', color: '#09090b', fontWeight: '700', marginTop: '4px', display: 'block' }}>
+                SCAN WITH PHONE CAMERA
+              </span>
             </div>
 
             <div style={{ flex: 1, minWidth: '220px' }}>

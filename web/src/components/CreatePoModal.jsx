@@ -148,12 +148,13 @@ export default function CreatePoModal({
 
             {/* QR Pass */}
             <div style={{ background: '#09090b', border: '1px solid rgba(255, 255, 255, 0.08)', borderRadius: '10px', padding: '16px', marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '20px', flexWrap: 'wrap' }}>
-              <div style={{ background: '#fff', padding: '8px', borderRadius: '8px', display: 'inline-block' }}>
+              <div style={{ background: '#fff', padding: '10px', borderRadius: '8px', display: 'inline-block', textAlign: 'center' }}>
                 <canvas 
                   ref={(el) => {
                     if (el && createdPoResult?.token) {
-                      QRCode.toCanvas(el, createdPoResult.token, {
-                        width: 130,
+                      const qrUrl = `${window.location.origin}/?tab=MOBILE_PWA&token=${encodeURIComponent(createdPoResult.token)}`;
+                      QRCode.toCanvas(el, qrUrl, {
+                        width: 150,
                         margin: 1,
                         color: { dark: '#09090b', light: '#ffffff' }
                       }).catch(e => console.error(e));
@@ -161,21 +162,37 @@ export default function CreatePoModal({
                   }} 
                   style={{ display: 'block' }}
                 />
+                <span style={{ fontSize: '10px', color: '#09090b', fontWeight: '700', marginTop: '4px', display: 'block' }}>
+                  SCAN WITH PHONE CAMERA
+                </span>
               </div>
 
               <div style={{ flex: 1, minWidth: '220px' }}>
-                <div style={{ fontSize: '13px', fontWeight: '600', color: 'var(--text-primary)', marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <QrCode size={14} color="#38bdf8" />
-                  Site Gate Pass &amp; Material Delivery QR
+                <div style={{ fontSize: '14px', fontWeight: '600', color: 'var(--text-primary)', marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <QrCode size={15} color="#38bdf8" />
+                  Site Gate Pass &amp; Delivery QR
                 </div>
-                <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '12px', lineHeight: 1.4 }}>
-                  Display at job site entrance. Delivery drivers and site supervisors scan this to verify material intake.
+                <p style={{ fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '10px', lineHeight: 1.4 }}>
+                  Scan with your standard mobile camera (iOS / Android) to open the Site Supervisor PWA with verified PO details preloaded.
                 </p>
-                <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', background: '#18181b', border: '1px solid rgba(255, 255, 255, 0.1)', borderRadius: '6px', padding: '6px 12px' }}>
-                  <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Site PIN:</span>
-                  <span style={{ fontFamily: 'var(--font-mono)', fontSize: '14px', fontWeight: '700', color: '#fafafa', letterSpacing: '1px' }}>
-                    {createdPoResult.po_id ? createdPoResult.po_id.replace(/[^0-9]/g, '').slice(-4) || '8842' : '8842'}
-                  </span>
+                <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
+                  <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: '#18181b', border: '1px solid rgba(255, 255, 255, 0.1)', borderRadius: '6px', padding: '6px 10px' }}>
+                    <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Site PIN:</span>
+                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: '13px', fontWeight: '700', color: '#fafafa', letterSpacing: '1px' }}>
+                      {createdPoResult.po_id ? createdPoResult.po_id.replace(/[^0-9]/g, '').slice(-4) || '8842' : '8842'}
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    className="btn-modern btn-modern-secondary btn-sm"
+                    onClick={() => {
+                      const qrUrl = `${window.location.origin}/?tab=MOBILE_PWA&token=${encodeURIComponent(createdPoResult.token)}`;
+                      navigator.clipboard.writeText(qrUrl);
+                      alert('Direct Mobile Intake URL copied to clipboard!\nYou can open this URL directly on your smartphone.');
+                    }}
+                  >
+                    Copy Phone Link
+                  </button>
                 </div>
               </div>
             </div>

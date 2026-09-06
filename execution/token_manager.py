@@ -19,7 +19,16 @@ def _base64url_decode(data: str) -> bytes:
     padding = "=" * ((4 - len(data) % 4) % 4)
     return base64.urlsafe_b64decode(data + padding)
 
-def generate_scoped_token(po_id: str, site_id: str, expires_in_seconds: int = 86400 * 7, created_by: str = "HQ_PROCUREMENT") -> str:
+def generate_scoped_token(
+    po_id: str, 
+    site_id: str, 
+    expires_in_seconds: int = 86400 * 7, 
+    created_by: str = "HQ_PROCUREMENT",
+    po_number: Optional[str] = None,
+    project_name: Optional[str] = None,
+    supplier_name: Optional[str] = None,
+    total_amount: Optional[float] = None
+) -> str:
     """
     Generates a secure HMAC-SHA256 signed token scoped to a specific PO and Project Site.
     """
@@ -28,6 +37,10 @@ def generate_scoped_token(po_id: str, site_id: str, expires_in_seconds: int = 86
     payload = {
         "po_id": po_id,
         "site_id": site_id,
+        "po_number": po_number or po_id,
+        "project_name": project_name or site_id,
+        "supplier_name": supplier_name or "",
+        "total_amount": total_amount or 0.0,
         "iat": now,
         "exp": now + expires_in_seconds,
         "created_by": created_by

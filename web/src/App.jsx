@@ -15,8 +15,9 @@ import CreateInvoiceModal from './components/CreateInvoiceModal';
 import InventoryManager from './components/InventoryManager';
 import VendorRiskScorecard from './components/VendorRiskScorecard';
 import './styles/modern-theme.css';
+import { getApiBase } from './utils/token';
 
-const API_BASE = 'http://localhost:8000/api';
+const API_BASE = getApiBase();
 
 export default function App() {
   const [hudData, setHudData] = useState({});
@@ -77,6 +78,23 @@ export default function App() {
 
   useEffect(() => {
     fetchAllData();
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const tabParam = params.get('tab');
+      const tokenParam = params.get('token');
+      if (tokenParam) {
+        setMobileToken(tokenParam);
+        setActiveTab('MOBILE_PWA');
+      } else if (tabParam) {
+        if (tabParam === 'MOBILE' || tabParam === 'MOBILE_PWA') {
+          setActiveTab('MOBILE_PWA');
+        } else {
+          setActiveTab(tabParam.toUpperCase());
+        }
+      }
+    } catch (e) {
+      console.warn('Could not parse URL query parameters:', e);
+    }
   }, []);
 
   // Action: Create PO & Connect to Site
