@@ -47,26 +47,6 @@ export default function HeaderHUD({
               + LOG INVOICE
             </button>
 
-            {/* Maker-Checker Role Selector */}
-            <div className="role-badge-box">
-              <UserCheck size={16} color="var(--cyber-cyan)" />
-              <span className="font-pixel" style={{ fontSize: '9px', color: '#FFF' }}>ACTOR:</span>
-              <select 
-                value={currentRole} 
-                onChange={(e) => {
-                  const role = e.target.value;
-                  setCurrentRole(role);
-                  if (role === 'FINANCE_CONTROLLER') setActorId('FINANCE_CONTROLLER_BOB');
-                  else if (role === 'AP_SPECIALIST') setActorId('AP_SPECIALIST_ALICE');
-                  else setActorId('SUPERVISOR_DAVE');
-                }}
-              >
-                <option value="FINANCE_CONTROLLER">FINANCE CONTROLLER (CHECKER)</option>
-                <option value="AP_SPECIALIST">AP SPECIALIST (MAKER)</option>
-                <option value="SITE_SUPERVISOR">SITE SUPERVISOR (PWA)</option>
-              </select>
-            </div>
-
             <button 
               className="btn-pixel btn-sm"
               style={{ background: '#352B4E', color: '#FFF' }}

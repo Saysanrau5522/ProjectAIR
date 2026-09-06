@@ -225,14 +225,14 @@ export default function Sidebar({
       <div className="sidebar-footer">
         <div className="actor-profile-card">
           <div className="actor-avatar">
-            {currentRole === 'FINANCE_CONTROLLER' ? 'FC' : currentRole === 'AP_SPECIALIST' ? 'AP' : 'SS'}
+            FC
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
             <span style={{ fontSize: '12px', fontWeight: '600', color: '#FFF', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-              {actorId}
+              Finance Controller
             </span>
-            <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>
-              {currentRole === 'FINANCE_CONTROLLER' ? 'Checker (Approver)' : currentRole === 'AP_SPECIALIST' ? 'Maker (Specialist)' : 'Site Supervisor'}
+            <span style={{ fontSize: '10px', color: 'var(--accent-emerald)' }}>
+              Administrator &bull; Active
             </span>
           </div>
         </div>

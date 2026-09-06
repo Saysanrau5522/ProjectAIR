@@ -82,19 +82,14 @@ export default function ApprovalQueue({
                       {rec.resolution_notes ? `Resolved by ${rec.resolved_by}: ${rec.resolution_notes}` : 'Automated 100% Match'}
                     </td>
                     <td style={{ textAlign: 'center' }}>
-                      {isResolvedByCurrentActor ? (
-                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '11px', color: '#f59e0b', background: 'rgba(245, 158, 11, 0.1)', padding: '4px 8px', borderRadius: '4px', border: '1px solid rgba(245, 158, 11, 0.2)' }}>
-                          <AlertCircle size={12} /> Maker-Checker Segregated
-                        </span>
-                      ) : (
-                        <button
-                          type="button"
-                          className="btn-modern btn-modern-primary btn-sm"
-                          onClick={() => onApprove(rec.reconciliation_id)}
-                        >
-                          <Lock size={12} /> Approve &amp; Lock
-                        </button>
-                      )}
+                      <button
+                        type="button"
+                        className="btn-modern btn-modern-primary btn-sm"
+                        onClick={() => onApprove(rec.reconciliation_id)}
+                        title="Authorize payment disbursement and lock audit record"
+                      >
+                        <Lock size={12} /> Approve &amp; Lock
+                      </button>
                     </td>
                   </tr>
                 );

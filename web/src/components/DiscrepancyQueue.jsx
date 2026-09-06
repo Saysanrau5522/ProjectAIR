@@ -136,7 +136,7 @@ export default function DiscrepancyQueue({
             </div>
 
             <p style={{ color: 'var(--text-secondary)', fontSize: '13px', marginBottom: '14px' }}>
-              Acting as <strong>{currentRole} ({actorId})</strong>. Document the agreed credit note reference or approved contractor adjustment.
+              Document the agreed vendor credit note reference or contractor adjustment for the audit trail.
             </p>
 
             <textarea

@@ -9,10 +9,6 @@ import {
 } from 'lucide-react';
 
 export default function TopNav({
-  currentRole,
-  setCurrentRole,
-  actorId,
-  setActorId,
   onRefresh,
   onOpenCreatePo,
   onOpenCreateInvoice,
@@ -77,43 +73,6 @@ export default function TopNav({
           <FileText size={14} />
           <span className="nav-btn-text">Log Invoice</span>
         </button>
-
-        {/* Maker-Checker Role Selector */}
-        <div className="role-simulator-container" style={{ position: 'relative' }}>
-          <div className="role-select-box" title="Segregation of Duties Simulation (Bank Negara Malaysia & Audit Compliance)">
-            <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-              <UserCheck size={14} color="var(--accent-blue)" />
-              <span className="role-sim-badge" style={{ 
-                fontSize: '10px', 
-                fontWeight: '700', 
-                textTransform: 'uppercase', 
-                letterSpacing: '0.04em',
-                color: 'var(--text-muted)',
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '3px'
-              }}>
-                Role:
-              </span>
-            </div>
-            <select 
-              className="role-select"
-              value={currentRole} 
-              aria-label="Simulate User Role"
-              onChange={(e) => {
-                const role = e.target.value;
-                setCurrentRole(role);
-                if (role === 'FINANCE_CONTROLLER') setActorId('FINANCE_CONTROLLER_BOB');
-                else if (role === 'AP_SPECIALIST') setActorId('AP_SPECIALIST_ALICE');
-                else setActorId('SUPERVISOR_DAVE');
-              }}
-            >
-              <option value="FINANCE_CONTROLLER">Controller (Checker &bull; Bob)</option>
-              <option value="AP_SPECIALIST">AP Specialist (Maker &bull; Alice)</option>
-              <option value="SITE_SUPERVISOR">Site Supervisor (Receiver &bull; Dave)</option>
-            </select>
-          </div>
-        </div>
 
         {/* Sync Button */}
         <button 

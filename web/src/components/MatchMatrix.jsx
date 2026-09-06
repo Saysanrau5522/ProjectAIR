@@ -293,14 +293,13 @@ export default function MatchMatrix({
                   <Split size={14} /> Approve Verified (${verifiedTotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}) &amp; Dispute Variance
                 </button>
 
-                {currentRole === 'AP_SPECIALIST' && (
-                  <button 
-                    className="btn btn-outline btn-sm"
-                    onClick={() => setResolveModalOpen(true)}
-                  >
-                    Resolve Discrepancy (Credit Note)
-                  </button>
-                )}
+                <button 
+                  className="btn btn-outline btn-sm"
+                  onClick={() => setResolveModalOpen(true)}
+                  title="Resolve discrepancy by registering vendor credit note adjustment"
+                >
+                  Resolve Discrepancy (Credit Note)
+                </button>
               </>
             )}
           </div>
@@ -310,8 +309,7 @@ export default function MatchMatrix({
               <button 
                 className="btn btn-primary btn-sm"
                 onClick={() => onApprove(activeRec.reconciliation_id)}
-                disabled={currentRole !== 'FINANCE_CONTROLLER'}
-                title={currentRole !== 'FINANCE_CONTROLLER' ? "Requires Finance Controller role (Maker-Checker segregation)" : "Approve invoice for disbursement"}
+                title="Approve invoice for immediate bank disbursement"
               >
                 <CheckCircle2 size={14} /> Approve Payout (${(activeRec.invoice_amount || activeRec.total_billed_amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })})
               </button>

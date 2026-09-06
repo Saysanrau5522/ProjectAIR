@@ -319,10 +319,6 @@ export default function App() {
       <div className="app-main">
         {/* Modern Top Navigation Bar */}
         <TopNav
-          currentRole={currentRole}
-          setCurrentRole={setCurrentRole}
-          actorId={actorId}
-          setActorId={setActorId}
           onRefresh={fetchAllData}
           onOpenCreatePo={() => handleOpenCreatePo(null)}
           onOpenCreateInvoice={() => setIsCreateInvoiceOpen(true)}
