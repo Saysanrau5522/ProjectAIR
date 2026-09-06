@@ -15,7 +15,8 @@ import {
   ChevronRight,
   ExternalLink,
   Layers,
-  Building
+  Building,
+  Printer
 } from 'lucide-react';
 
 export default function MatchMatrix({
@@ -28,7 +29,8 @@ export default function MatchMatrix({
   onDispute,
   onDispatchDispute,
   onExportErp,
-  onViewDoc
+  onViewDoc,
+  onOpenDocModal
 }) {
   const [selectedRecId, setSelectedRecId] = useState(reconciliations[0]?.reconciliation_id || null);
   const [disputeModalOpen, setDisputeModalOpen] = useState(false);
@@ -92,6 +94,17 @@ export default function MatchMatrix({
 
           {/* Action Tools & Status Badge */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+            {onOpenDocModal && (
+              <button 
+                className="btn btn-primary btn-sm" 
+                onClick={() => onOpenDocModal({ initialDocType: 'AUDIT_VOUCHER', reconciliation: activeRec })}
+                title="Export official audited 3-way match payment voucher PDF"
+                style={{ background: '#059669', borderColor: '#059669', color: '#fff' }}
+              >
+                <Printer size={13} /> Export Audit Voucher (PDF)
+              </button>
+            )}
+
             {onExportErp && (
               <button className="btn btn-outline btn-sm" onClick={onExportErp} title="Download standard CSV disbursement batch for accounting">
                 <Download size={13} /> Export to ERP (CSV)

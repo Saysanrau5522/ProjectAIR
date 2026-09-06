@@ -1,12 +1,13 @@
 import React from 'react';
-import { Building, Plus, FileText, Smartphone, MapPin } from 'lucide-react';
+import { Building, Plus, FileText, Smartphone, MapPin, Printer, QrCode } from 'lucide-react';
 
 export default function ProjectSitesManager({
   sites = [],
   pos = [],
   onOpenCreatePo,
   onOpenCreateInvoice,
-  onSelectTokenForMobile
+  onSelectTokenForMobile,
+  onOpenDocModal
 }) {
   return (
     <div className="modern-card">
@@ -102,9 +103,22 @@ export default function ProjectSitesManager({
                               {po.supplier_name}
                             </span>
                           </div>
-                          <span style={{ fontFamily: 'var(--font-mono)', fontSize: '12px', color: 'var(--text-secondary)' }}>
-                            ${po.total_amount?.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                          </span>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                            <span style={{ fontFamily: 'var(--font-mono)', fontSize: '12px', color: 'var(--text-secondary)' }}>
+                              ${po.total_amount?.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                            </span>
+                            {onOpenDocModal && (
+                              <button
+                                type="button"
+                                className="btn-modern btn-modern-secondary btn-sm"
+                                style={{ padding: '3px 7px', fontSize: '11px' }}
+                                onClick={() => onOpenDocModal({ initialDocType: 'PO', po, site })}
+                                title="Download / Print PO PDF"
+                              >
+                                <Printer size={11} /> PDF
+                              </button>
+                            )}
+                          </div>
                         </div>
                       ))}
                     </div>
@@ -113,7 +127,7 @@ export default function ProjectSitesManager({
               </div>
 
               {/* Action Footer */}
-              <div style={{ marginTop: '16px', borderTop: '1px solid rgba(255, 255, 255, 0.06)', paddingTop: '12px', display: 'flex', gap: '8px' }}>
+              <div style={{ marginTop: '16px', borderTop: '1px solid rgba(255, 255, 255, 0.06)', paddingTop: '12px', display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
                 <button 
                   type="button"
                   className="btn-modern btn-modern-secondary btn-sm"
@@ -121,6 +135,26 @@ export default function ProjectSitesManager({
                 >
                   <Plus size={12} /> Add PO for Site
                 </button>
+                {onOpenDocModal && (
+                  <>
+                    <button 
+                      type="button"
+                      className="btn-modern btn-modern-secondary btn-sm"
+                      onClick={() => onOpenDocModal({ initialDocType: 'DO_GATE_PASS', site, po: sitePos[0] })}
+                      title="Print laminated Gate Pass QR poster for site weighbridge"
+                    >
+                      <QrCode size={12} color="#38bdf8" /> Gate Pass PDF
+                    </button>
+                    <button 
+                      type="button"
+                      className="btn-modern btn-modern-secondary btn-sm"
+                      onClick={() => onOpenDocModal({ initialDocType: 'SITE_DOSSIER', site, allPos: pos })}
+                      title="Print Quantity Surveyor (QS) site financial dossier"
+                    >
+                      <FileText size={12} /> Site Dossier
+                    </button>
+                  </>
+                )}
                 {sitePos.length > 0 && (
                   <button 
                     type="button"

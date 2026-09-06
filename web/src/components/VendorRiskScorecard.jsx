@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 
 import { getApiBase } from '../utils/token';
+import { apiRequest } from '../utils/apiClient';
 
 const API_BASE = getApiBase();
 
@@ -24,8 +25,7 @@ export default function VendorRiskScorecard() {
   const fetchRiskProfiles = async () => {
     try {
       setLoading(true);
-      const res = await fetch(`${API_BASE}/vendors/risk`);
-      const data = await res.json();
+      const data = await apiRequest('/vendors/risk');
       setVendors(Array.isArray(data) ? data : []);
     } catch (err) {
       console.error('Failed to load vendor risk profiles:', err);

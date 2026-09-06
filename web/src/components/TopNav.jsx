@@ -16,6 +16,7 @@ export default function TopNav({
   onRefresh,
   onOpenCreatePo,
   onOpenCreateInvoice,
+  onOpenDocModal,
   onToggleMobileNav,
   loading = false
 }) {
@@ -45,6 +46,18 @@ export default function TopNav({
       </div>
 
       <div className="nav-right">
+        {/* Quick Action: Documents & PDF Templates */}
+        {onOpenDocModal && (
+          <button 
+            className="btn btn-secondary btn-sm nav-action-btn"
+            onClick={() => onOpenDocModal({ initialDocType: 'PO' })}
+            title="Open Document Export Center & Print Templates"
+          >
+            <FileText size={14} color="#38bdf8" />
+            <span className="nav-btn-text">PDF Center</span>
+          </button>
+        )}
+
         {/* Quick Action: Issue PO */}
         <button 
           className="btn btn-outline btn-sm nav-action-btn"

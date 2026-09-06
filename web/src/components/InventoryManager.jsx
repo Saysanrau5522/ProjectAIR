@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 
 import { getApiBase } from '../utils/token';
+import { apiRequest } from '../utils/apiClient';
 
 const API_BASE = getApiBase();
 
@@ -30,14 +31,12 @@ export default function InventoryManager({ onRefreshLedger }) {
     try {
       setLoading(true);
       const url = selectedSite === 'ALL' 
-        ? `${API_BASE}/inventory` 
-        : `${API_BASE}/inventory?site_id=${encodeURIComponent(selectedSite)}`;
-      const res = await fetch(url);
-      const data = await res.json();
+        ? `/inventory` 
+        : `/inventory?site_id=${encodeURIComponent(selectedSite)}`;
+      const data = await apiRequest(url);
       setStocks(Array.isArray(data) ? data : []);
 
-      const sitesRes = await fetch(`${API_BASE}/sites`);
-      const sitesData = await sitesRes.json();
+      const sitesData = await apiRequest('/sites');
       setSites(Array.isArray(sitesData) ? sitesData : []);
     } catch (err) {
       console.error('Failed to load inventory stock ledger:', err);
@@ -53,14 +52,13 @@ export default function InventoryManager({ onRefreshLedger }) {
   const handleDraftReorderPo = async (stock) => {
     try {
       setReorderingId(stock.stock_id);
-      const res = await fetch(`${API_BASE}/inventory/reorder`, {
+      const result = await apiRequest('/inventory/reorder', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ stock_id: stock.stock_id })
       });
-      const result = await res.json();
-      if (!res.ok) {
-        throw new Error(result.error || 'Failed to generate replenishment PO');
+      if (result && result.error) {
+        throw new Error(result.error);
       }
       setReorderSuccessModal(result);
       await fetchInventory();

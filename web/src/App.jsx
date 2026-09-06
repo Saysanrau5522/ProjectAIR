@@ -14,8 +14,10 @@ import CreatePoModal from './components/CreatePoModal';
 import CreateInvoiceModal from './components/CreateInvoiceModal';
 import InventoryManager from './components/InventoryManager';
 import VendorRiskScorecard from './components/VendorRiskScorecard';
+import DocumentExportModal from './components/DocumentExportModal';
 import './styles/modern-theme.css';
 import { getApiBase } from './utils/token';
+import { apiRequest } from './utils/apiClient';
 
 const API_BASE = getApiBase();
 
@@ -28,10 +30,16 @@ export default function App() {
   const [activeTab, setActiveTab] = useState('OVERVIEW');
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
   
-  // Modals for PO & Invoice Creation
   const [isCreatePoOpen, setIsCreatePoOpen] = useState(false);
   const [isCreateInvoiceOpen, setIsCreateInvoiceOpen] = useState(false);
   const [selectedSiteForPo, setSelectedSiteForPo] = useState(null);
+
+  // Document PDF / Print Export Modal State
+  const [activeDocModal, setActiveDocModal] = useState(null);
+
+  const handleOpenDocModal = (config = {}) => {
+    setActiveDocModal(config);
+  };
 
   const handleOpenCreatePo = (siteId = null) => {
     setSelectedSiteForPo(siteId);
@@ -48,27 +56,19 @@ export default function App() {
   const fetchAllData = async () => {
     try {
       setLoading(true);
-      const [hudRes, posRes, sitesRes, recRes, auditRes] = await Promise.all([
-        fetch(`${API_BASE}/hud`),
-        fetch(`${API_BASE}/pos`),
-        fetch(`${API_BASE}/sites`),
-        fetch(`${API_BASE}/reconciliations`),
-        fetch(`${API_BASE}/audit-logs`)
-      ]);
-
       const [hud, p, s, recs, logs] = await Promise.all([
-        hudRes.json(),
-        posRes.json(),
-        sitesRes.json(),
-        recRes.json(),
-        auditRes.json()
+        apiRequest('/hud'),
+        apiRequest('/pos'),
+        apiRequest('/sites'),
+        apiRequest('/reconciliations'),
+        apiRequest('/audit-logs')
       ]);
 
-      setHudData(hud);
-      setPos(p);
-      setSites(s);
-      setReconciliations(recs);
-      setAuditLogs(logs);
+      setHudData(hud || {});
+      setPos(Array.isArray(p) ? p : []);
+      setSites(Array.isArray(s) ? s : []);
+      setReconciliations(Array.isArray(recs) ? recs : []);
+      setAuditLogs(Array.isArray(logs) ? logs : []);
     } catch (err) {
       console.error('Failed to load ledger data:', err);
     } finally {
@@ -99,7 +99,7 @@ export default function App() {
 
   // Action: Create PO & Connect to Site
   const handleCreatePo = async (poData) => {
-    const res = await fetch(`${API_BASE}/pos/create`, {
+    const data = await apiRequest('/pos/create', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -108,8 +108,7 @@ export default function App() {
       },
       body: JSON.stringify(poData)
     });
-    const data = await res.json();
-    if (!res.ok) {
+    if (data && data.error) {
       throw new Error(data.error || 'Failed to create PO');
     }
     await fetchAllData();
@@ -118,7 +117,7 @@ export default function App() {
 
   // Action: Log Supplier Invoice & Run 3-Way Match
   const handleCreateInvoice = async (invoiceData) => {
-    const res = await fetch(`${API_BASE}/invoices/create`, {
+    const data = await apiRequest('/invoices/create', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -127,8 +126,7 @@ export default function App() {
       },
       body: JSON.stringify(invoiceData)
     });
-    const data = await res.json();
-    if (!res.ok) {
+    if (data && data.error) {
       throw new Error(data.error || 'Failed to log invoice');
     }
     await fetchAllData();
@@ -139,7 +137,7 @@ export default function App() {
   // Action: Maker Resolves Discrepancy
   const handleResolve = async (reconciliationId, notes) => {
     try {
-      const res = await fetch(`${API_BASE}/reconciliations/resolve`, {
+      const data = await apiRequest('/reconciliations/resolve', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -153,13 +151,8 @@ export default function App() {
           actor_role: currentRole
         })
       });
-      const data = await res.json();
-      if (res.ok) {
-        alert('Discrepancy resolved and routed to Checker Approval Queue!');
-        fetchAllData();
-      } else {
-        alert(`Error: ${data.error}`);
-      }
+      alert('Discrepancy resolved and routed to Checker Approval Queue!');
+      fetchAllData();
     } catch (e) {
       alert(`Network error: ${e.message}`);
     }
@@ -168,7 +161,7 @@ export default function App() {
   // Action: Checker Approves Payment (Maker-Checker Enforced)
   const handleApprove = async (reconciliationId) => {
     try {
-      const res = await fetch(`${API_BASE}/reconciliations/approve`, {
+      const data = await apiRequest('/reconciliations/approve', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -181,13 +174,8 @@ export default function App() {
           actor_role: currentRole
         })
       });
-      const data = await res.json();
-      if (res.ok) {
-        alert('Payment officially approved and record permanently locked!');
-        fetchAllData();
-      } else {
-        alert(`Security Blocked: ${data.error}`);
-      }
+      alert('Payment officially approved and record permanently locked!');
+      fetchAllData();
     } catch (e) {
       alert(`Network error: ${e.message}`);
     }
@@ -196,7 +184,7 @@ export default function App() {
   // Action: File Dispute
   const handleDispute = async (reconciliationId, reason) => {
     try {
-      const res = await fetch(`${API_BASE}/reconciliations/dispute`, {
+      await apiRequest('/reconciliations/dispute', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -208,10 +196,8 @@ export default function App() {
           reason
         })
       });
-      if (res.ok) {
-        alert('Formal dispute logged and vendor notified.');
-        fetchAllData();
-      }
+      alert('Formal dispute logged and vendor notified.');
+      fetchAllData();
     } catch (e) {
       alert(`Error: ${e.message}`);
     }
@@ -220,7 +206,7 @@ export default function App() {
   // Action: Short-Pay / Partial Payment Approval (Authorizes verified funds to keep site running)
   const handleApprovePartial = async (reconciliationId, notes) => {
     try {
-      const res = await fetch(`${API_BASE}/reconciliations/approve-partial`, {
+      await apiRequest('/reconciliations/approve-partial', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -234,13 +220,8 @@ export default function App() {
           notes: notes || 'Short-pay approved for verified physical site deliveries.'
         })
       });
-      const data = await res.json();
-      if (res.ok) {
-        alert('Short-Pay Voucher authorized! Verified funds released for bank disbursement while disputed balance is withheld under debit note.');
-        fetchAllData();
-      } else {
-        alert(`Security Blocked: ${data.error}`);
-      }
+      alert('Short-Pay Voucher authorized! Verified funds released for bank disbursement while disputed balance is withheld under debit note.');
+      fetchAllData();
     } catch (e) {
       alert(`Network error: ${e.message}`);
     }
@@ -249,7 +230,7 @@ export default function App() {
   // Action: Dispatch Dispute Notice via Email to Vendor AR
   const handleDispatchDispute = async (reconciliationId, recipientEmail) => {
     try {
-      const res = await fetch(`${API_BASE}/reconciliations/dispatch-dispute`, {
+      await apiRequest('/reconciliations/dispatch-dispute', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -261,11 +242,8 @@ export default function App() {
           recipient_email: recipientEmail
         })
       });
-      const data = await res.json();
-      if (res.ok) {
-        alert(`Formal dispute letter & annotated DO proof dispatched to: ${recipientEmail}`);
-        fetchAllData();
-      }
+      alert(`Formal dispute letter & annotated DO proof dispatched to: ${recipientEmail}`);
+      fetchAllData();
     } catch (e) {
       alert(`Error: ${e.message}`);
     }
@@ -278,34 +256,29 @@ export default function App() {
 
   // Action: Mobile DO Upload
   const handleIngestDo = async (payload) => {
-    const res = await fetch(`${API_BASE}/ingest/do`, {
+    const data = await apiRequest('/ingest/do', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
     });
-    const data = await res.json();
-    if (!res.ok) {
-      throw new Error(data.error || 'Ingest failed');
-    }
     fetchAllData();
     return data;
   };
 
   // Action: Confirm Low-Confidence DO
   const handleConfirmLowConfidence = async (doId) => {
-    const res = await fetch(`${API_BASE}/reconciliations/confirm-low-confidence`, {
+    const data = await apiRequest('/reconciliations/confirm-low-confidence', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ do_id: doId, actor_id: actorId })
     });
-    const data = await res.json();
     fetchAllData();
     return data;
   };
 
   // Action: Generate Scoped QR Token
   const handleGenerateToken = async (poId, siteId, expiresDays) => {
-    const res = await fetch(`${API_BASE}/qr/generate`, {
+    const data = await apiRequest('/qr/generate', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -314,7 +287,7 @@ export default function App() {
       },
       body: JSON.stringify({ po_id: poId, site_id: siteId, expires_days: expiresDays })
     });
-    return await res.json();
+    return data;
   };
 
   const handleSelectTokenForMobile = (tokenStr) => {
@@ -353,6 +326,7 @@ export default function App() {
           onRefresh={fetchAllData}
           onOpenCreatePo={() => handleOpenCreatePo(null)}
           onOpenCreateInvoice={() => setIsCreateInvoiceOpen(true)}
+          onOpenDocModal={handleOpenDocModal}
           onToggleMobileNav={() => setIsMobileNavOpen(!isMobileNavOpen)}
           loading={loading}
         />
@@ -379,6 +353,7 @@ export default function App() {
               onDispute={handleDispute}
               onDispatchDispute={handleDispatchDispute}
               onExportErp={handleExportErp}
+              onOpenDocModal={handleOpenDocModal}
             />
           )}
 
@@ -397,6 +372,7 @@ export default function App() {
               onOpenCreatePo={handleOpenCreatePo}
               onOpenCreateInvoice={() => setIsCreateInvoiceOpen(true)}
               onSelectTokenForMobile={handleSelectTokenForMobile}
+              onOpenDocModal={handleOpenDocModal}
             />
           )}
 
@@ -451,7 +427,6 @@ export default function App() {
       </div>
 
       {/* Create Purchase Order Modal */}
-
       <CreatePoModal
         isOpen={isCreatePoOpen}
         onClose={() => {
@@ -462,6 +437,7 @@ export default function App() {
         initialSiteId={selectedSiteForPo}
         onSubmitPo={handleCreatePo}
         onSelectTokenForMobile={handleSelectTokenForMobile}
+        onOpenDocModal={handleOpenDocModal}
       />
 
       {/* Log Supplier Invoice Modal */}
@@ -475,6 +451,19 @@ export default function App() {
           setIsCreatePoOpen(true);
         }}
       />
+
+      {/* Universal Document Export & Print Engine Modal */}
+      {activeDocModal && (
+        <DocumentExportModal
+          isOpen={!!activeDocModal}
+          onClose={() => setActiveDocModal(null)}
+          initialDocType={activeDocModal.initialDocType || 'PO'}
+          po={activeDocModal.po || null}
+          site={activeDocModal.site || null}
+          reconciliation={activeDocModal.reconciliation || null}
+          allPos={pos}
+        />
+      )}
     </div>
   );
 }

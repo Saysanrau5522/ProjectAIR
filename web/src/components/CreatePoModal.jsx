@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import QRCode from 'qrcode';
-import { Plus, Trash2, CheckCircle, Smartphone, Building, QrCode, X } from 'lucide-react';
+import { Plus, Trash2, CheckCircle, Smartphone, Building, QrCode, X, Printer } from 'lucide-react';
 
 export default function CreatePoModal({
   isOpen,
@@ -8,6 +8,7 @@ export default function CreatePoModal({
   sites = [],
   onSubmitPo,
   onSelectTokenForMobile,
+  onOpenDocModal,
   initialSiteId = null
 }) {
   const [poNumber, setPoNumber] = useState(`PO-2026-${Math.floor(100 + Math.random() * 900)}`);
@@ -198,6 +199,31 @@ export default function CreatePoModal({
             </div>
 
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', flexWrap: 'wrap' }}>
+              {onOpenDocModal && (
+                <button 
+                  type="button"
+                  className="btn-modern btn-modern-secondary"
+                  onClick={() => {
+                    onOpenDocModal({ 
+                      initialDocType: 'PO', 
+                      po: {
+                        po_number: createdPoResult.po_number,
+                        project_name: createdPoResult.project_name,
+                        supplier_name: createdPoResult.supplier_name,
+                        total_amount: createdPoResult.total_amount,
+                        issue_date: issueDate,
+                        items: lineItems,
+                        token: createdPoResult.token,
+                        po_id: createdPoResult.po_id
+                      }
+                    });
+                    onClose();
+                  }}
+                  style={{ color: '#38bdf8', borderColor: 'rgba(56, 189, 248, 0.3)' }}
+                >
+                  <Printer size={14} /> View &amp; Print PO (PDF)
+                </button>
+              )}
               <button 
                 type="button"
                 className="btn-modern btn-modern-secondary"
