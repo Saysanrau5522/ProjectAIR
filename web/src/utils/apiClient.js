@@ -114,11 +114,69 @@ function handleLocalFallback(endpoint, options = {}) {
     return getStored(STORAGE_KEYS.AUDIT_LOGS, []);
   }
 
+  // 5b. GET /inventory
+  if (endpoint.startsWith('/inventory') && method === 'GET') {
+    let inventory = getStored(STORAGE_KEYS.INVENTORY, []);
+    
+    // Auto-sync from POs if inventory is empty
+    if (inventory.length === 0) {
+      const pos = getStored(STORAGE_KEYS.POS, []);
+      const initialStocks = [];
+      pos.forEach(po => {
+        (po.items || []).forEach((it, idx) => {
+          const qty = Number(it.quantity || 1);
+          const minReorder = Math.max(5, Math.round(qty * 0.2));
+          initialStocks.push({
+            stock_id: `stk-${po.po_id}-${idx}`,
+            site_id: po.project_site_id || 'SITE-USM',
+            project_name: po.project_name || 'Project Site',
+            item_code: it.item_code || `MAT-00${idx + 1}`,
+            description: it.description || 'Material',
+            current_quantity: qty,
+            unit: it.unit || 'Units',
+            min_reorder_level: minReorder,
+            reorder_quantity: qty,
+            stock_status: qty <= minReorder ? 'CRITICAL_LOW' : 'OPTIMAL',
+            status_label: qty <= minReorder ? 'CRITICAL: REORDER REQUIRED' : 'HEALTHY STOCK LEVEL',
+            last_delivery_date: po.issue_date || new Date().toISOString().split('T')[0],
+            unit_price: it.unit_price || 0
+          });
+        });
+      });
+      if (initialStocks.length > 0) {
+        inventory = initialStocks;
+        setStored(STORAGE_KEYS.INVENTORY, inventory);
+      }
+    }
+
+    // Check site_id filter in query param
+    const match = endpoint.match(/[?&]site_id=([^&]+)/);
+    const siteFilter = match ? decodeURIComponent(match[1]) : null;
+    if (siteFilter && siteFilter !== 'ALL') {
+      return inventory.filter(s => s.site_id === siteFilter);
+    }
+    return inventory;
+  }
+
+  // 5c. POST /inventory/reorder
+  if (endpoint === '/inventory/reorder' && method === 'POST') {
+    const inventory = getStored(STORAGE_KEYS.INVENTORY, []);
+    const targetStock = inventory.find(s => s.stock_id === body.stock_id);
+    const poNumber = `PO-REORDER-${Date.now().toString().slice(-4)}`;
+    return {
+      status: 'success',
+      message: `Draft Replenishment PO ${poNumber} authorized.`,
+      po_number: poNumber,
+      stock: targetStock
+    };
+  }
+
   // 6. POST /pos/create
   if (endpoint === '/pos/create' && method === 'POST') {
     const pos = getStored(STORAGE_KEYS.POS, []);
     const sites = getStored(STORAGE_KEYS.SITES, []);
     const logs = getStored(STORAGE_KEYS.AUDIT_LOGS, []);
+    const inventory = getStored(STORAGE_KEYS.INVENTORY, []);
 
     const poId = `po-${Date.now()}`;
     const siteId = body.site_id || `site-${(body.custom_site_name || 'site').toLowerCase().replace(/[^a-z0-9]/g, '-')}`;
@@ -159,6 +217,39 @@ function handleLocalFallback(endpoint, options = {}) {
     // Update POs
     const updatedPos = [newPo, ...pos];
     setStored(STORAGE_KEYS.POS, updatedPos);
+
+    // Update Inventory SKUs for this site
+    const currentInventory = getStored(STORAGE_KEYS.INVENTORY, []);
+    const updatedInventory = [...currentInventory];
+    newPo.items.forEach((it, idx) => {
+      const existingIdx = updatedInventory.findIndex(s => s.site_id === siteId && s.item_code === it.item_code);
+      const qty = Number(it.quantity || 1);
+      const minReorder = Math.max(5, Math.round(qty * 0.2));
+      if (existingIdx >= 0) {
+        updatedInventory[existingIdx] = {
+          ...updatedInventory[existingIdx],
+          current_quantity: (Number(updatedInventory[existingIdx].current_quantity) || 0) + qty,
+          last_delivery_date: newPo.issue_date
+        };
+      } else {
+        updatedInventory.push({
+          stock_id: `stk-${poId}-${idx}`,
+          site_id: siteId,
+          project_name: siteName,
+          item_code: it.item_code,
+          description: it.description,
+          current_quantity: qty,
+          unit: it.unit || 'Units',
+          min_reorder_level: minReorder,
+          reorder_quantity: qty,
+          stock_status: qty <= minReorder ? 'CRITICAL_LOW' : 'OPTIMAL',
+          status_label: qty <= minReorder ? 'CRITICAL: REORDER REQUIRED' : 'HEALTHY STOCK LEVEL',
+          last_delivery_date: newPo.issue_date,
+          unit_price: it.unit_price || 0
+        });
+      }
+    });
+    setStored(STORAGE_KEYS.INVENTORY, updatedInventory);
 
     // Update Sites if not exists
     if (!sites.some(s => s.site_id === siteId)) {

@@ -15,7 +15,9 @@ import {
   MapPin,
   Calendar,
   DollarSign,
-  UserCheck
+  UserCheck,
+  Edit3,
+  Check
 } from 'lucide-react';
 
 export default function DocumentExportModal({
@@ -29,7 +31,24 @@ export default function DocumentExportModal({
 }) {
   const [activeType, setActiveType] = useState(initialDocType);
   const [copied, setCopied] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
   const qrCanvasRef = useRef(null);
+
+  // Customizable document parameters
+  const [customConfig, setCustomConfig] = useState({
+    companyName: 'PROJECT AIR INFRASTRUCTURE SDN BHD',
+    registrationNo: 'SSM Reg: 202401099882 (1548231-X) • SST ID: W10-2401-32000412',
+    address: 'Level 28, Menara Binjai, No 2 Jalan Binjai, 50450 Kuala Lumpur, Malaysia',
+    qsName: 'En. Muhammad Farhan Bin Azhar (B.Sc QS, MISM)',
+    qsRole: 'Senior Quantity Surveyor (QS) • CIDB Certified',
+    directorName: 'Ir. Tan Chee Keong (P.Eng, MIEM)',
+    directorRole: 'Project Director & Authorized Signatory',
+    siteNotes: 'Certified site material intake summary prepared in compliance with CIDB site verification tolerances and PAM Contract 2018 guidelines.'
+  });
+
+  const handleConfigChange = (field, value) => {
+    setCustomConfig(prev => ({ ...prev, [field]: value }));
+  };
 
   useEffect(() => {
     if (initialDocType) {
@@ -148,6 +167,13 @@ export default function DocumentExportModal({
           {/* Actions */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <button 
+              className={`btn-modern ${isEditing ? 'btn-modern-primary' : 'btn-modern-secondary'} btn-sm`}
+              onClick={() => setIsEditing(!isEditing)}
+              title="Customize company details, signatories, and QS inspection notes"
+            >
+              {isEditing ? <Check size={13} /> : <Edit3 size={13} />} {isEditing ? 'Preview Document' : 'Edit Template'}
+            </button>
+            <button 
               className="btn-modern btn-modern-secondary btn-sm"
               onClick={handleCopyText}
               title="Copy plain text summary"
@@ -171,6 +197,32 @@ export default function DocumentExportModal({
           </div>
         </div>
 
+        {/* Inline Template Editor Drawer */}
+        {isEditing && (
+          <div className="no-print" style={{ background: '#141418', borderBottom: '1px solid rgba(255, 255, 255, 0.1)', padding: '14px 20px', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '12px' }}>
+            <div>
+              <label style={{ fontSize: '11px', color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>Company Legal Name</label>
+              <input type="text" value={customConfig.companyName} onChange={e => handleConfigChange('companyName', e.target.value)} style={{ width: '100%', background: '#18181b', color: '#fff', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '4px', padding: '6px 8px', fontSize: '12px' }} />
+            </div>
+            <div>
+              <label style={{ fontSize: '11px', color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>SSM Reg &amp; SST Number</label>
+              <input type="text" value={customConfig.registrationNo} onChange={e => handleConfigChange('registrationNo', e.target.value)} style={{ width: '100%', background: '#18181b', color: '#fff', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '4px', padding: '6px 8px', fontSize: '12px' }} />
+            </div>
+            <div>
+              <label style={{ fontSize: '11px', color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>Senior QS Signatory Name</label>
+              <input type="text" value={customConfig.qsName} onChange={e => handleConfigChange('qsName', e.target.value)} style={{ width: '100%', background: '#18181b', color: '#fff', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '4px', padding: '6px 8px', fontSize: '12px' }} />
+            </div>
+            <div>
+              <label style={{ fontSize: '11px', color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>Project Director Name</label>
+              <input type="text" value={customConfig.directorName} onChange={e => handleConfigChange('directorName', e.target.value)} style={{ width: '100%', background: '#18181b', color: '#fff', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '4px', padding: '6px 8px', fontSize: '12px' }} />
+            </div>
+            <div style={{ gridColumn: '1 / -1' }}>
+              <label style={{ fontSize: '11px', color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>Site Inspection / Valuation Progress Remarks</label>
+              <input type="text" value={customConfig.siteNotes} onChange={e => handleConfigChange('siteNotes', e.target.value)} style={{ width: '100%', background: '#18181b', color: '#fff', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '4px', padding: '6px 8px', fontSize: '12px' }} />
+            </div>
+          </div>
+        )}
+
         {/* Scrollable Printable Document Container */}
         <div className="doc-modal-body">
           <div className="doc-paper-sheet printable-document-container">
@@ -181,10 +233,10 @@ export default function DocumentExportModal({
                 {/* Formal Header */}
                 <div className="doc-header-row">
                   <div>
-                    <div className="doc-company-title">PROJECT AIR CONSTRUCTION PTE LTD</div>
+                    <div className="doc-company-title">{customConfig.companyName}</div>
                     <div className="doc-subtext">Infrastructure &amp; Industrial Engineering Operations</div>
-                    <div className="doc-subtext">Level 28, Menara Binjai, No 2 Jalan Binjai, 50450 Kuala Lumpur, Malaysia</div>
-                    <div className="doc-subtext">Business Reg (SSM): 202401099882 (1548231-X) &bull; SST ID: W10-2401-32000412</div>
+                    <div className="doc-subtext">{customConfig.address}</div>
+                    <div className="doc-subtext">{customConfig.registrationNo}</div>
                   </div>
                   <div className="doc-id-box">
                     <div className="doc-tag">OFFICIAL PURCHASE ORDER</div>
@@ -539,9 +591,10 @@ export default function DocumentExportModal({
               <div className="doc-content-layout">
                 <div className="doc-header-row">
                   <div>
-                    <div className="doc-company-title">PROJECT AIR SITE EXPENDITURE DOSSIER</div>
-                    <div className="doc-subtext">Project Site Financial Summary &bull; Materials Fulfillment Report</div>
+                    <div className="doc-company-title">{customConfig.companyName}</div>
+                    <div className="doc-subtext">Project Site Financial Summary &bull; Materials Intake &amp; Valuation Report</div>
                     <div className="doc-subtext">Prepared for Senior Quantity Surveyor (QS) &amp; Project Director Review</div>
+                    <div className="doc-subtext">{customConfig.registrationNo}</div>
                   </div>
                   <div className="doc-id-box">
                     <div className="doc-tag">SITE DOSSIER</div>
@@ -576,6 +629,12 @@ export default function DocumentExportModal({
                   </div>
                 </div>
 
+                {/* Custom Site Inspection / Valuation Progress Remarks */}
+                <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '4px', padding: '10px 14px', marginBottom: '18px', fontSize: '11px', color: '#334155' }}>
+                  <strong style={{ color: '#0f172a' }}>QS Site Progress &amp; Intake Notes: </strong>
+                  {customConfig.siteNotes}
+                </div>
+
                 {/* Active Contracts at this Site */}
                 <div className="doc-section-label">COMMITTED SUPPLIER CONTRACTS ALLOCATED TO THIS SITE</div>
                 <table className="doc-table" style={{ marginBottom: '24px' }}>
@@ -608,8 +667,8 @@ export default function DocumentExportModal({
                     ) : (
                       <tr>
                         <td className="doc-mono"><strong>{activePo?.po_number || 'PO-2026-01'}</strong></td>
-                        <td>{activePo?.supplier_name || 'Lafarge Concrete Malaysia'}</td>
-                        <td>2026-03-01</td>
+                        <td>{activePo?.supplier_name || 'Authorized Supplier'}</td>
+                        <td>{activePo?.issue_date || new Date().toISOString().split('T')[0]}</td>
                         <td style={{ textAlign: 'right' }} className="doc-mono doc-bold">
                           RM {(activePo?.total_amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
                         </td>
@@ -627,15 +686,15 @@ export default function DocumentExportModal({
                 <div className="doc-signature-row">
                   <div className="doc-signature-box">
                     <div className="doc-sign-line" />
-                    <div className="doc-sign-name">Senior Quantity Surveyor (QS)</div>
-                    <div className="doc-sign-role">Material Intake &amp; Site Progress Auditor</div>
+                    <div className="doc-sign-name">{customConfig.qsName}</div>
+                    <div className="doc-sign-role">{customConfig.qsRole}</div>
                     <div className="doc-stamp verified">QS ATTESTED</div>
                   </div>
 
                   <div className="doc-signature-box">
                     <div className="doc-sign-line" />
-                    <div className="doc-sign-name">Project Director / GM</div>
-                    <div className="doc-sign-role">Executive Site Authorization</div>
+                    <div className="doc-sign-name">{customConfig.directorName}</div>
+                    <div className="doc-sign-role">{customConfig.directorRole}</div>
                     <div className="doc-stamp-placeholder">Director Stamp</div>
                   </div>
                 </div>
@@ -645,7 +704,7 @@ export default function DocumentExportModal({
             {/* Document Security Footnote */}
             <div className="doc-system-footnote">
               <div>PROJECT AIR CONCURRENT FINANCIAL INTELLIGENCE &bull; SYSTEM HASH: SHA256-ED25519-VAL-{activePo?.po_id || '2026'}</div>
-              <div>Generated electronically. This document constitutes an authenticated record under Malaysian Digital Signature Act 1997.</div>
+              <div>Generated electronically in accordance with the Malaysian Electronic Commerce Act 2006 (Act 658) and admissible under Section 90A of the Evidence Act 1950.</div>
             </div>
 
           </div>

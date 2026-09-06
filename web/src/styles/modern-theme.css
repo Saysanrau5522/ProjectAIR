@@ -1902,22 +1902,35 @@ html, body {
 }
 
 /* ----------------------------------------------------------
-   Native Browser @media print Rules
+   Native Browser @media print Rules (100% Clean White A4 PDF)
    ---------------------------------------------------------- */
 @media print {
-  body {
+  html, body, #root, .app-shell, .app-main, .content-container, 
+  .doc-modal-overlay, .doc-modal-dialog, .doc-modal-body {
     background: #ffffff !important;
-    color: #000000 !important;
+    background-color: #ffffff !important;
+    color: #0f172a !important;
     margin: 0 !important;
     padding: 0 !important;
+    box-shadow: none !important;
+    border: none !important;
+    width: 100% !important;
+    height: auto !important;
+    min-height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
   }
 
   /* Hide screen UI elements */
   .no-print,
+  .top-navbar,
   .top-nav,
+  .sidebar,
+  .left-rail,
   .mobile-drawer,
+  .sidebar-backdrop,
   .modal-overlay,
   .doc-modal-toolbar,
   header,
@@ -1926,19 +1939,19 @@ html, body {
     display: none !important;
   }
 
-  /* Make modal overlay transparent & flow naturally */
+  /* Position modal container cleanly at the very top */
   .doc-modal-overlay {
     position: static !important;
-    background: transparent !important;
+    display: block !important;
+    background: #ffffff !important;
     backdrop-filter: none !important;
     -webkit-backdrop-filter: none !important;
     padding: 0 !important;
     margin: 0 !important;
-    display: block !important;
   }
 
   .doc-modal-dialog {
-    background: transparent !important;
+    background: #ffffff !important;
     border: none !important;
     box-shadow: none !important;
     max-width: 100% !important;
@@ -1949,16 +1962,18 @@ html, body {
 
   .doc-modal-body {
     padding: 0 !important;
+    margin: 0 !important;
     max-height: none !important;
     overflow: visible !important;
-    background: transparent !important;
+    background: #ffffff !important;
   }
 
-  .doc-paper-sheet {
+  .doc-paper-sheet,
+  .printable-document-container {
     box-shadow: none !important;
     border: none !important;
     margin: 0 !important;
-    padding: 0 !important;
+    padding: 10mm 12mm !important;
     width: 100% !important;
     max-width: 100% !important;
     min-height: auto !important;
@@ -1975,7 +1990,7 @@ html, body {
 
   @page {
     size: A4 portrait;
-    margin: 12mm 15mm 15mm 15mm;
+    margin: 8mm 10mm 8mm 10mm;
   }
 }
 

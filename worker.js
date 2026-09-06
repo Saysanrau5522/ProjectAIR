@@ -8,6 +8,7 @@ let edgePos = [];
 let edgeSites = [];
 let edgeReconciliations = [];
 let edgeAuditLogs = [];
+let edgeInventory = [];
 
 function jsonResponse(data, status = 200) {
   return new Response(JSON.stringify(data, null, 2), {
@@ -111,6 +112,36 @@ async function handleApiRequest(request, url) {
         });
       }
 
+      // Provision site inventory ledger items
+      newPo.items.forEach((it, idx) => {
+        const existingIdx = edgeInventory.findIndex(s => s.site_id === siteId && s.item_code === it.item_code);
+        const qty = Number(it.quantity || 1);
+        const minReorder = Math.max(5, Math.round(qty * 0.2));
+        if (existingIdx >= 0) {
+          edgeInventory[existingIdx] = {
+            ...edgeInventory[existingIdx],
+            current_quantity: (Number(edgeInventory[existingIdx].current_quantity) || 0) + qty,
+            last_delivery_date: newPo.issue_date
+          };
+        } else {
+          edgeInventory.push({
+            stock_id: `stk-${poId}-${idx}`,
+            site_id: siteId,
+            project_name: siteName,
+            item_code: it.item_code,
+            description: it.description,
+            current_quantity: qty,
+            unit: it.unit || 'Units',
+            min_reorder_level: minReorder,
+            reorder_quantity: qty,
+            stock_status: qty <= minReorder ? 'CRITICAL_LOW' : 'OPTIMAL',
+            status_label: qty <= minReorder ? 'CRITICAL: REORDER REQUIRED' : 'HEALTHY STOCK LEVEL',
+            last_delivery_date: newPo.issue_date,
+            unit_price: it.unit_price || 0
+          });
+        }
+      });
+
       edgeAuditLogs.unshift({
         log_id: `log-${Date.now()}`,
         action: 'PO_AUTHORIZED',
@@ -137,6 +168,27 @@ async function handleApiRequest(request, url) {
   // 4. Project Sites
   if (path === '/sites' && method === 'GET') {
     return jsonResponse(edgeSites);
+  }
+
+  // 4b. Inventory Ledger
+  if (path === '/inventory' && method === 'GET') {
+    const siteFilter = url.searchParams.get('site_id');
+    if (siteFilter && siteFilter !== 'ALL') {
+      return jsonResponse(edgeInventory.filter(s => s.site_id === siteFilter));
+    }
+    return jsonResponse(edgeInventory);
+  }
+
+  if (path === '/inventory/reorder' && method === 'POST') {
+    const body = await request.json();
+    const targetStock = edgeInventory.find(s => s.stock_id === body.stock_id);
+    const poNumber = `PO-REORDER-${Date.now().toString().slice(-4)}`;
+    return jsonResponse({
+      status: 'success',
+      message: `Draft Replenishment PO ${poNumber} created.`,
+      po_number: poNumber,
+      stock: targetStock
+    });
   }
 
   // 5. Invoices & 3-Way Match

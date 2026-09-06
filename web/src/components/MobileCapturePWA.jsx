@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import jsQR from 'jsqr';
-import { Camera, CheckCircle2, Wifi, WifiOff, Upload, Smartphone, AlertCircle, Building, RefreshCw, Sparkles, ShieldCheck, Key } from 'lucide-react';
+import { Camera, CheckCircle2, Wifi, WifiOff, Upload, Smartphone, AlertCircle, Building, RefreshCw, Sparkles, ShieldCheck, Key, Clock, Send } from 'lucide-react';
 import { parseAndValidateToken, getApiBase } from '../utils/token';
 
 export default function MobileCapturePWA({
@@ -21,7 +21,17 @@ export default function MobileCapturePWA({
   const [isUploading, setIsUploading] = useState(false);
   const [uploadSuccess, setUploadSuccess] = useState(null);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
-  const [offlineQueue, setOfflineQueue] = useState([]);
+  
+  // Persisted offline DO queue (Shift Outbox)
+  const [offlineQueue, setOfflineQueue] = useState(() => {
+    try {
+      const q = localStorage.getItem('project_air_offline_do_queue');
+      return q ? JSON.parse(q) : [];
+    } catch (e) {
+      return [];
+    }
+  });
+
   const [simulateCrumpled, setSimulateCrumpled] = useState(false);
   const [overrideQty, setOverrideQty] = useState('');
   const [scanFeedback, setScanFeedback] = useState(null);
@@ -43,6 +53,25 @@ export default function MobileCapturePWA({
     };
   }, []);
 
+  // Sync token whenever prop or URL query parameter changes
+  useEffect(() => {
+    if (initialToken) {
+      setToken(initialToken);
+      verifyToken(initialToken);
+    } else {
+      try {
+        const params = new URLSearchParams(window.location.search);
+        const urlToken = params.get('token');
+        if (urlToken) {
+          setToken(urlToken);
+          verifyToken(urlToken);
+        }
+      } catch (e) {
+        console.warn('Could not read URL query token:', e);
+      }
+    }
+  }, [initialToken, pos]);
+
   useEffect(() => {
     if (token) {
       verifyToken(token);
@@ -62,21 +91,39 @@ export default function MobileCapturePWA({
       return;
     }
 
+    let cleanToken = tokenStr;
+    let clientPayload = null;
+
     // Step 1: Parse and validate cryptographic JWT structure client-side
     const parsed = parseAndValidateToken(tokenStr);
-    if (!parsed.valid) {
-      setVerifiedTokenData(null);
-      setScanFeedback({
-        type: 'error',
-        message: `Invalid Pass: ${parsed.reason}`
-      });
-      return;
+    if (parsed.valid) {
+      cleanToken = parsed.token;
+      clientPayload = parsed.payload;
+    } else {
+      // Graceful fallback: check if token matches a known PO in ledger
+      const matched = pos.find(p => p.po_id === tokenStr || p.po_number === tokenStr || p.token === tokenStr);
+      if (matched) {
+        cleanToken = matched.token || tokenStr;
+        clientPayload = {
+          po_id: matched.po_id,
+          po_number: matched.po_number,
+          project_name: matched.project_name,
+          site_id: matched.project_site_id,
+          supplier_name: matched.supplier_name,
+          total_amount: matched.total_amount,
+          items: matched.items
+        };
+      } else {
+        setVerifiedTokenData(null);
+        setScanFeedback({
+          type: 'error',
+          message: `Invalid Pass: ${parsed.reason}`
+        });
+        return;
+      }
     }
 
     // Valid pass recognized
-    const cleanToken = parsed.token;
-    const clientPayload = parsed.payload;
-
     if (clientPayload.po_id) setSelectedPoId(clientPayload.po_id);
     if (clientPayload.site_id) setSelectedSiteId(clientPayload.site_id);
 
@@ -89,7 +136,8 @@ export default function MobileCapturePWA({
         po_number: clientPayload.po_number || clientPayload.po_id,
         project_name: clientPayload.project_name || clientPayload.site_id,
         supplier_name: clientPayload.supplier_name || 'Authorized Supplier',
-        total_amount: clientPayload.total_amount || 0
+        total_amount: clientPayload.total_amount || 0,
+        items: clientPayload.items || []
       }
     });
 
@@ -109,7 +157,6 @@ export default function MobileCapturePWA({
       if (res.ok) {
         const data = await res.json();
         if (data.valid) {
-          setVerifiedTokenData(data);
           if (data.payload?.po_id) setSelectedPoId(data.payload.po_id);
           if (data.payload?.site_id) setSelectedSiteId(data.payload.site_id);
         }
@@ -229,7 +276,7 @@ export default function MobileCapturePWA({
 
     setIsUploading(true);
     const targetPo = pos.find(p => p.po_id === selectedPoId) || pos[0];
-    const firstItem = targetPo?.line_items?.[0] || {
+    const firstItem = targetPo?.items?.[0] || targetPo?.line_items?.[0] || {
       item_code: 'MAT-GEN-01',
       description: 'General Materials',
       unit: 'Units',
@@ -238,7 +285,7 @@ export default function MobileCapturePWA({
 
     const deliveredQty = Number(overrideQty) || firstItem.quantity;
     const isUnder85 = simulateCrumpled;
-    const confidenceScore = isUnder85 ? 0.72 : 0.94;
+    const confidenceScore = isUnder85 ? 0.72 : 0.95;
 
     const payload = {
       po_id: targetPo?.po_id || selectedPoId,
@@ -259,17 +306,16 @@ export default function MobileCapturePWA({
     };
 
     if (!isOnline) {
-      setOfflineQueue([...offlineQueue, payload]);
+      handleSaveLater();
       setIsUploading(false);
-      alert('You are currently offline. Delivery record queued locally in browser buffer.');
       return;
     }
 
     try {
       const res = await onIngestDo(payload);
       setUploadSuccess({
-        do_number: res.delivery_order?.do_number || 'DO-AUTO-VERIFIED',
-        status: res.reconciliation?.match_status || 'MATCHED',
+        do_number: res?.delivery_order?.do_number || 'DO-AUTO-VERIFIED',
+        status: res?.reconciliation?.match_status || 'MATCHED',
         confidence: confidenceScore,
         po_id: targetPo?.po_number
       });
@@ -282,14 +328,75 @@ export default function MobileCapturePWA({
     }
   };
 
-  const syncOfflineQueue = async () => {
-    setIsUploading(true);
-    for (const item of offlineQueue) {
-      await onIngestDo(item);
+  const handleSaveLater = () => {
+    if (!selectedPoId) {
+      alert('Please select a purchase order or scan a site QR pass first.');
+      return;
     }
-    setOfflineQueue([]);
-    setIsUploading(false);
-    alert('All offline DO captures synced successfully to HQ ledger!');
+
+    const targetPo = pos.find(p => p.po_id === selectedPoId) || pos[0];
+    const firstItem = targetPo?.items?.[0] || targetPo?.line_items?.[0] || {
+      item_code: 'MAT-GEN-01',
+      description: 'General Construction Materials',
+      unit: 'Units',
+      quantity: 100
+    };
+
+    const deliveredQty = Number(overrideQty) || firstItem.quantity;
+    const isUnder85 = simulateCrumpled;
+    const confidenceScore = isUnder85 ? 0.72 : 0.95;
+
+    const payload = {
+      queue_id: `q-${Date.now()}`,
+      po_id: targetPo?.po_id || selectedPoId,
+      po_number: targetPo?.po_number || 'PO-CONTRACT',
+      site_name: targetPo?.project_name || 'Project Site',
+      site_id: targetPo?.project_site_id || selectedSiteId || '',
+      supplier_name: targetPo?.supplier_name || 'Supplier',
+      supervisor_phone: supervisorPhone,
+      file_name: selectedFile ? selectedFile.name : (isUnder85 ? 'crumpled_dirty_do.png' : 'site_delivery_docket.jpg'),
+      file_path: isUnder85 ? '/crumpled_dirty_do.png' : '/clean_site_do.jpg',
+      confidence_score: confidenceScore,
+      saved_at: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      extracted_line_items: [
+        {
+          item_code: firstItem.item_code,
+          description: firstItem.description,
+          unit: firstItem.unit,
+          quantity_delivered: deliveredQty,
+          confidence: confidenceScore
+        }
+      ]
+    };
+
+    const updated = [payload, ...offlineQueue];
+    setOfflineQueue(updated);
+    try {
+      localStorage.setItem('project_air_offline_do_queue', JSON.stringify(updated));
+    } catch (e) {}
+
+    setSelectedFile(null);
+    setPreviewUrl(null);
+    alert(`✅ Delivery Docket Saved to Shift Outbox!\n(${updated.length} docket(s) pending). You can sync now or send later when connected.`);
+  };
+
+  const syncOfflineQueue = async () => {
+    if (offlineQueue.length === 0) return;
+    setIsUploading(true);
+    try {
+      for (const item of offlineQueue) {
+        await onIngestDo(item);
+      }
+      setOfflineQueue([]);
+      try {
+        localStorage.removeItem('project_air_offline_do_queue');
+      } catch (e) {}
+      alert(`✅ All queued delivery dockets uploaded and verified against HQ POs!`);
+    } catch (e) {
+      alert('Error syncing offline queue: ' + e.message);
+    } finally {
+      setIsUploading(false);
+    }
   };
 
   const handleVerifyPin = () => {
@@ -491,7 +598,7 @@ export default function MobileCapturePWA({
                 HMAC-SHA256
               </span>
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '10px', fontSize: '12px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '10px', fontSize: '12px', marginBottom: '10px' }}>
               <div>
                 <span style={{ color: 'var(--text-muted)', display: 'block', fontSize: '11px' }}>PO Number</span>
                 <strong style={{ color: '#fff', fontFamily: 'var(--font-mono)' }}>{activePoObject?.po_number || verifiedTokenData.payload?.po_number}</strong>
@@ -506,9 +613,30 @@ export default function MobileCapturePWA({
               </div>
               <div>
                 <span style={{ color: 'var(--text-muted)', display: 'block', fontSize: '11px' }}>Authorized Total</span>
-                <strong style={{ color: '#10b981' }}>${(activePoObject?.total_amount || verifiedTokenData.payload?.total_amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</strong>
+                <strong style={{ color: '#10b981' }}>RM {(activePoObject?.total_amount || verifiedTokenData.payload?.total_amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</strong>
               </div>
             </div>
+
+            {/* Itemized Materials Table */}
+            {activePoObject?.items && activePoObject.items.length > 0 && (
+              <div style={{ borderTop: '1px solid rgba(255, 255, 255, 0.08)', paddingTop: '8px' }}>
+                <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.04em', fontWeight: '600' }}>
+                  Permitted Material Deliveries Under This Contract:
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                  {activePoObject.items.map((it, idx) => (
+                    <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', background: 'rgba(0,0,0,0.3)', padding: '5px 8px', borderRadius: '4px' }}>
+                      <span style={{ color: '#fafafa' }}>
+                        <strong>{it.description}</strong> <span style={{ color: 'var(--text-muted)', fontSize: '11px' }}>({it.item_code})</span>
+                      </span>
+                      <span style={{ fontFamily: 'var(--font-mono)', color: '#10b981', fontWeight: '600' }}>
+                        {it.quantity} {it.unit || 'Units'} &bull; RM {Number(it.unit_price || 0).toFixed(2)}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -588,16 +716,64 @@ export default function MobileCapturePWA({
         </label>
       </div>
 
-      {/* Submit Button */}
-      <button 
-        type="button"
-        className="btn-modern btn-modern-primary" 
-        style={{ width: '100%', padding: '12px', fontSize: '14px' }}
-        disabled={isUploading}
-        onClick={handleCaptureSubmit}
-      >
-        {isUploading ? 'Processing AI Vision...' : 'Submit Delivery Record to HQ Ledger'}
-      </button>
+      {/* Dual Submission Action Buttons: Submit Now vs. Save & Send Later */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '10px' }}>
+        <button 
+          type="button"
+          className="btn-modern btn-modern-primary" 
+          style={{ padding: '12px 14px', fontSize: '13px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
+          disabled={isUploading}
+          onClick={handleCaptureSubmit}
+        >
+          <Upload size={14} /> {isUploading ? 'Ingesting DO...' : 'Verify & Submit Now'}
+        </button>
+        <button 
+          type="button"
+          className="btn-modern btn-modern-secondary" 
+          style={{ padding: '12px 14px', fontSize: '13px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', borderColor: 'rgba(56, 189, 248, 0.3)', color: '#38bdf8' }}
+          disabled={isUploading}
+          onClick={handleSaveLater}
+          title="Save delivery docket photo and details into shift queue to upload later"
+        >
+          <Clock size={14} /> Save &amp; Send Later (Outbox)
+        </button>
+      </div>
+
+      {/* Shift Outbox List: Queued Dockets */}
+      {offlineQueue.length > 0 && (
+        <div style={{ marginTop: '20px', background: '#141418', border: '1px solid rgba(56, 189, 248, 0.25)', borderRadius: '10px', padding: '16px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px', flexWrap: 'wrap', gap: '8px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', fontWeight: '600', color: '#fff' }}>
+              <Clock size={15} color="#38bdf8" />
+              Shift Outbox: {offlineQueue.length} Docket(s) Pending Sync
+            </div>
+            <button 
+              type="button"
+              className="btn-modern btn-modern-primary btn-sm"
+              disabled={isUploading}
+              onClick={syncOfflineQueue}
+              style={{ background: '#38bdf8', borderColor: '#38bdf8', color: '#09090b', fontWeight: '700' }}
+            >
+              <Send size={12} /> Sync All ({offlineQueue.length}) to HQ
+            </button>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            {offlineQueue.map((item, idx) => (
+              <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#18181b', padding: '8px 12px', borderRadius: '6px', fontSize: '12px', border: '1px solid rgba(255,255,255,0.06)' }}>
+                <div>
+                  <strong style={{ color: '#fafafa' }}>PO #{item.po_number || item.po_id}</strong> &bull; {item.site_name || item.site_id}
+                  <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                    Saved at {item.saved_at || 'Recently'} &bull; Docket: {item.file_name}
+                  </div>
+                </div>
+                <span style={{ fontSize: '10px', padding: '2px 8px', borderRadius: '4px', background: 'rgba(56, 189, 248, 0.12)', color: '#38bdf8', fontFamily: 'var(--font-mono)', fontWeight: '600' }}>
+                  READY TO SYNC
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Upload Success Feedback */}
       {uploadSuccess && (

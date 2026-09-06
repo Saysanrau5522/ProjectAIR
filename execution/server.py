@@ -415,19 +415,39 @@ class ProjectAIRRequestHandler(BaseHTTPRequestHandler):
         for idx, it in enumerate(line_items):
             qty = float(it.get("quantity", 1))
             price = float(it.get("unit_price", 0))
+            item_code = it.get("item_code") or f"MAT-ITEM-{idx+1}"
+            desc = it.get("description", "Material Item")
+            unit = it.get("unit", "Units")
+
             cursor.execute("""
                 INSERT INTO po_line_items (id, po_id, item_code, description, unit, quantity, unit_price, total_price)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             """, (
                 f"POLI-{uuid.uuid4().hex[:6].upper()}",
                 po_id,
-                it.get("item_code") or f"MAT-ITEM-{idx+1}",
-                it.get("description", "Material Item"),
-                it.get("unit", "Units"),
+                item_code,
+                desc,
+                unit,
                 qty,
                 price,
                 round(qty * price, 2)
             ))
+
+            # Provision or update site inventory ledger tracking
+            cursor.execute("""
+                SELECT stock_id, current_quantity FROM inventory_stocks
+                WHERE site_id = ? AND item_code = ?
+            """, (project_site_id, item_code))
+            existing_stock = cursor.fetchone()
+            if not existing_stock:
+                stock_id = f"STK-{uuid.uuid4().hex[:6].upper()}"
+                min_reorder = max(5.0, round(qty * 0.2, 1))
+                cursor.execute("""
+                    INSERT INTO inventory_stocks (
+                        stock_id, site_id, item_code, description, current_quantity,
+                        unit, min_reorder_level, reorder_quantity, last_delivery_date
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, (stock_id, project_site_id, item_code, desc, 0.0, unit, min_reorder, qty, issue_date))
 
         # Automatically generate a signed scoped QR token for this PO & Site!
         token = generate_scoped_token(
