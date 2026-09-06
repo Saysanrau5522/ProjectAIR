@@ -132,26 +132,6 @@ body.retro-body::after {
   align-items: center;
 }
 
-/* Gamified Role Selector */
-.role-badge-box {
-  background: var(--bg-terminal);
-  border: 2px solid var(--cyber-cyan);
-  padding: 6px 12px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.role-badge-box select {
-  background: transparent;
-  color: var(--cyber-cyan);
-  border: none;
-  font-family: 'Press Start 2P', monospace;
-  font-size: 10px;
-  outline: none;
-  cursor: pointer;
-}
-
 /* Metric Counter HUD Bar */
 .metrics-grid {
   display: grid;
