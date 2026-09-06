@@ -134,7 +134,7 @@ async function handleApiRequest(request, url) {
   if (path === '/pos/create' && method === 'POST') {
     try {
       const body = await request.json();
-      const poId = `po-${Date.now()}`;
+      const poId = body.po_id || body.po_number || `po-${Date.now()}`;
       const siteName = body.custom_site_name || 'Project Site';
       const siteId = body.site_id || `site-${siteName.toLowerCase().replace(/[^a-z0-9]/g, '-')}`;
       
@@ -142,13 +142,22 @@ async function handleApiRequest(request, url) {
         return sum + (Number(it.quantity || 1) * Number(it.unit_price || 0));
       }, 0);
 
+      const itemsList = (body.line_items || []).map((it, idx) => ({
+        item_code: it.item_code || `MAT-00${idx + 1}`,
+        description: it.description || 'Material',
+        quantity: Number(it.quantity || 1),
+        unit_price: Number(it.unit_price || 0),
+        unit: it.unit || 'Units'
+      }));
+
       const token = generateEdgeToken({
         po_id: poId,
         po_number: body.po_number,
         site_id: siteId,
         project_name: siteName,
         supplier_name: body.supplier_name,
-        total_amount: totalAmount
+        total_amount: totalAmount,
+        items: itemsList
       });
 
       const newPo = {

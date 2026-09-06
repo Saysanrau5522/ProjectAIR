@@ -144,43 +144,44 @@ export default function CreatePoModal({
               Purchase Order #{createdPoResult.po_number} Authorized &amp; Registered
             </div>
             <p style={{ color: 'var(--text-secondary)', marginBottom: '20px', fontSize: '13px' }}>
-              Total Authorized: <strong style={{ color: '#fff' }}>${createdPoResult.total_amount?.toLocaleString(undefined, { minimumFractionDigits: 2 })}</strong> &bull; Site: <strong style={{ color: '#fff' }}>{createdPoResult.project_name}</strong> &bull; Supplier: <strong style={{ color: '#fff' }}>{createdPoResult.supplier_name}</strong>
+              Total Authorized: <strong style={{ color: '#fff' }}>RM {createdPoResult.total_amount?.toLocaleString(undefined, { minimumFractionDigits: 2 })}</strong> &bull; Site: <strong style={{ color: '#fff' }}>{createdPoResult.project_name}</strong> &bull; Supplier: <strong style={{ color: '#fff' }}>{createdPoResult.supplier_name}</strong>
             </p>
 
             {/* QR Pass */}
             <div style={{ background: '#09090b', border: '1px solid rgba(255, 255, 255, 0.08)', borderRadius: '10px', padding: '16px', marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '20px', flexWrap: 'wrap' }}>
-              <div style={{ background: '#fff', padding: '10px', borderRadius: '8px', display: 'inline-block', textAlign: 'center' }}>
+              <div style={{ background: '#fff', padding: '12px', borderRadius: '10px', display: 'inline-block', textAlign: 'center', boxShadow: '0 4px 12px rgba(0,0,0,0.5)' }}>
                 <canvas 
                   ref={(el) => {
                     if (el && createdPoResult?.token) {
                       const qrUrl = `${window.location.origin}/?tab=MOBILE_PWA&token=${encodeURIComponent(createdPoResult.token)}`;
                       QRCode.toCanvas(el, qrUrl, {
-                        width: 150,
-                        margin: 1,
+                        width: 220,
+                        margin: 2,
+                        errorCorrectionLevel: 'M',
                         color: { dark: '#09090b', light: '#ffffff' }
-                      }).catch(e => console.error(e));
+                      }).catch(e => console.error('Failed to generate QR canvas:', e));
                     }
                   }} 
-                  style={{ display: 'block' }}
+                  style={{ display: 'block', maxWidth: '100%', height: 'auto', imageRendering: 'pixelated' }}
                 />
-                <span style={{ fontSize: '10px', color: '#09090b', fontWeight: '700', marginTop: '4px', display: 'block' }}>
+                <span style={{ fontSize: '11px', color: '#09090b', fontWeight: '800', marginTop: '6px', display: 'block', letterSpacing: '0.5px' }}>
                   SCAN WITH PHONE CAMERA
                 </span>
               </div>
 
               <div style={{ flex: 1, minWidth: '220px' }}>
-                <div style={{ fontSize: '14px', fontWeight: '600', color: 'var(--text-primary)', marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <QrCode size={15} color="#38bdf8" />
+                <div style={{ fontSize: '15px', fontWeight: '600', color: 'var(--text-primary)', marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <QrCode size={16} color="#38bdf8" />
                   Site Gate Pass &amp; Delivery QR
                 </div>
-                <p style={{ fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '10px', lineHeight: 1.4 }}>
-                  Scan with your standard mobile camera (iOS / Android) to open the Site Supervisor PWA with verified PO details preloaded.
+                <p style={{ fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '12px', lineHeight: 1.5 }}>
+                  Scan with standard camera (iOS / Android) to open Site Supervisor PWA with verified PO details preloaded.
                 </p>
                 <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
-                  <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: '#18181b', border: '1px solid rgba(255, 255, 255, 0.1)', borderRadius: '6px', padding: '6px 10px' }}>
+                  <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: '#18181b', border: '1px solid rgba(255, 255, 255, 0.12)', borderRadius: '6px', padding: '6px 12px' }}>
                     <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Site PIN:</span>
-                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: '13px', fontWeight: '700', color: '#fafafa', letterSpacing: '1px' }}>
-                      {createdPoResult.po_id ? createdPoResult.po_id.replace(/[^0-9]/g, '').slice(-4) || '8842' : '8842'}
+                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: '14px', fontWeight: '800', color: '#38bdf8', letterSpacing: '1.5px' }}>
+                      {(createdPoResult.po_number || createdPoResult.po_id || '8842').replace(/[^0-9]/g, '').slice(-4) || '8842'}
                     </span>
                   </div>
                   <button
@@ -195,6 +196,12 @@ export default function CreatePoModal({
                     Copy Phone Link
                   </button>
                 </div>
+
+                {typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') && (
+                  <div style={{ marginTop: '12px', padding: '8px 10px', background: 'rgba(56, 189, 248, 0.08)', border: '1px solid rgba(56, 189, 248, 0.2)', borderRadius: '6px', fontSize: '11px', color: '#93c5fd', lineHeight: 1.4 }}>
+                    💡 <strong>Localhost Tip:</strong> Phone cameras open links on your phone's network. When testing locally on the same computer, click <strong>Open in Site Supervisor PWA</strong> below or enter PIN <strong>#{(createdPoResult.po_number || createdPoResult.po_id || '8842').replace(/[^0-9]/g, '').slice(-4) || '8842'}</strong> in the mobile tab.
+                  </div>
+                )}
               </div>
             </div>
 

@@ -79,15 +79,29 @@ export default function MobileCapturePWA({
     }
   }, [token]);
 
+  // When POs load from backend, sync selection without overriding an active/scanned token
   useEffect(() => {
+    if (token || verifiedTokenData?.payload?.po_id) {
+      const targetId = verifiedTokenData?.payload?.po_id || verifiedTokenData?.payload?.po_number;
+      if (targetId && pos.length > 0) {
+        const matched = pos.find(p => p.po_id === targetId || p.po_number === targetId);
+        if (matched) {
+          setSelectedPoId(matched.po_id);
+          if (matched.project_site_id) setSelectedSiteId(matched.project_site_id);
+          setVerifiedTokenData(prev => prev ? { ...prev, purchase_order: matched } : null);
+        }
+      }
+      return;
+    }
+
     if (pos.length > 0) {
-      const exists = pos.some(p => p.po_id === selectedPoId);
+      const exists = pos.some(p => p.po_id === selectedPoId || p.po_number === selectedPoId);
       if (!exists || !selectedPoId) {
         setSelectedPoId(pos[0].po_id);
         setSelectedSiteId(pos[0].project_site_id);
       }
     }
-  }, [pos]);
+  }, [pos, token, verifiedTokenData?.payload?.po_id]);
 
   const verifyToken = async (tokenStr) => {
     if (!tokenStr) {
@@ -128,26 +142,33 @@ export default function MobileCapturePWA({
     }
 
     // Valid pass recognized
-    if (clientPayload.po_id) setSelectedPoId(clientPayload.po_id);
-    if (clientPayload.site_id) setSelectedSiteId(clientPayload.site_id);
+    const poId = clientPayload.po_id || clientPayload.po_number;
+    const poNum = clientPayload.po_number || clientPayload.po_id;
+    const siteId = clientPayload.site_id || 'SITE-GENERAL';
 
-    const matchedPo = pos.find(p => p.po_id === clientPayload.po_id);
+    if (poId) setSelectedPoId(poId);
+    if (siteId) setSelectedSiteId(siteId);
+
+    const matchedPo = pos.find(p => p.po_id === poId || p.po_number === poNum || p.po_number === poId);
+    const resolvedPo = matchedPo || {
+      po_id: poId,
+      po_number: poNum,
+      project_site_id: siteId,
+      project_name: clientPayload.project_name || siteId,
+      supplier_name: clientPayload.supplier_name || 'Authorized Supplier',
+      total_amount: clientPayload.total_amount || 0,
+      items: clientPayload.items || []
+    };
+
     setVerifiedTokenData({
       valid: true,
       payload: clientPayload,
-      purchase_order: matchedPo || {
-        po_id: clientPayload.po_id,
-        po_number: clientPayload.po_number || clientPayload.po_id,
-        project_name: clientPayload.project_name || clientPayload.site_id,
-        supplier_name: clientPayload.supplier_name || 'Authorized Supplier',
-        total_amount: clientPayload.total_amount || 0,
-        items: clientPayload.items || []
-      }
+      purchase_order: resolvedPo
     });
 
     setScanFeedback({
       type: 'success',
-      message: `✅ Gate Pass Verified: PO #${clientPayload.po_number || clientPayload.po_id} at ${clientPayload.project_name || clientPayload.site_id}`
+      message: `✅ Gate Pass Verified: PO #${poNum} at ${clientPayload.project_name || siteId}`
     });
 
     // Step 2: Attempt backend server HMAC verification if online
@@ -224,6 +245,11 @@ export default function MobileCapturePWA({
         }
 
         // Real verified gate pass!
+        const poId = parsed.payload?.po_id || parsed.payload?.po_number;
+        const siteId = parsed.payload?.site_id;
+        if (poId) setSelectedPoId(poId);
+        if (siteId) setSelectedSiteId(siteId);
+
         setToken(parsed.token);
         verifyToken(parsed.token);
         return;
@@ -279,7 +305,7 @@ export default function MobileCapturePWA({
     }
 
     setIsUploading(true);
-    const targetPo = pos.find(p => p.po_id === selectedPoId) || pos[0];
+    const targetPo = activePoObject || pos.find(p => p.po_id === selectedPoId || p.po_number === selectedPoId) || pos[0];
     const firstItem = targetPo?.items?.[0] || targetPo?.line_items?.[0] || {
       item_code: 'MAT-GEN-01',
       description: 'General Materials',
@@ -293,7 +319,7 @@ export default function MobileCapturePWA({
 
     const payload = {
       po_id: targetPo?.po_id || selectedPoId,
-      site_id: targetPo?.project_site_id || selectedSiteId || (pos[0]?.project_site_id || ''),
+      site_id: targetPo?.project_site_id || targetPo?.site_id || selectedSiteId || (pos[0]?.project_site_id || ''),
       supervisor_phone: supervisorPhone,
       file_name: selectedFile ? selectedFile.name : (isUnder85 ? 'crumpled_dirty_do.png' : 'clean_site_do.jpg'),
       file_path: isUnder85 ? '/crumpled_dirty_do.png' : '/clean_site_do.jpg',
@@ -321,7 +347,7 @@ export default function MobileCapturePWA({
         do_number: res?.delivery_order?.do_number || 'DO-AUTO-VERIFIED',
         status: res?.reconciliation?.match_status || 'MATCHED',
         confidence: confidenceScore,
-        po_id: targetPo?.po_number
+        po_id: targetPo?.po_number || targetPo?.po_id
       });
       setSelectedFile(null);
       setPreviewUrl(null);
@@ -333,12 +359,12 @@ export default function MobileCapturePWA({
   };
 
   const handleSaveLater = () => {
-    if (!selectedPoId) {
+    if (!selectedPoId && !activePoObject) {
       alert('Please select a purchase order or scan a site QR pass first.');
       return;
     }
 
-    const targetPo = pos.find(p => p.po_id === selectedPoId) || pos[0];
+    const targetPo = activePoObject || pos.find(p => p.po_id === selectedPoId || p.po_number === selectedPoId) || pos[0];
     const firstItem = targetPo?.items?.[0] || targetPo?.line_items?.[0] || {
       item_code: 'MAT-GEN-01',
       description: 'General Construction Materials',
@@ -410,8 +436,9 @@ export default function MobileCapturePWA({
       return;
     }
     const matched = pos.find(p => {
-      const pin = p.po_id.replace(/[^0-9]/g, '').slice(-4);
-      return pin === cleaned || p.po_id.includes(cleaned) || p.po_number.includes(cleaned);
+      const pinId = (p.po_id || '').replace(/[^0-9]/g, '').slice(-4);
+      const pinNum = (p.po_number || '').replace(/[^0-9]/g, '').slice(-4);
+      return pinId === cleaned || pinNum === cleaned || (p.po_id && p.po_id.includes(cleaned)) || (p.po_number && p.po_number.includes(cleaned));
     });
 
     if (matched) {
@@ -419,11 +446,20 @@ export default function MobileCapturePWA({
       setSelectedSiteId(matched.project_site_id);
       setVerifiedTokenData({
         valid: true,
-        purchase_order: matched
+        purchase_order: matched,
+        payload: {
+          po_id: matched.po_id,
+          po_number: matched.po_number,
+          site_id: matched.project_site_id,
+          project_name: matched.project_name,
+          supplier_name: matched.supplier_name,
+          total_amount: matched.total_amount,
+          items: matched.items
+        }
       });
       setScanFeedback({
         type: 'success',
-        message: `Site PIN Verified! Linked to Contract #${matched.po_number} (${matched.project_name} - ${matched.supplier_name})`
+        message: `✅ Site PIN Verified! Linked to Contract #${matched.po_number} (${matched.project_name} - ${matched.supplier_name})`
       });
     } else {
       setScanFeedback({
@@ -434,8 +470,7 @@ export default function MobileCapturePWA({
     }
   };
 
-  const activePoObject = pos.find(p => p.po_id === selectedPoId) 
-    || verifiedTokenData?.purchase_order 
+  const activePoObject = verifiedTokenData?.purchase_order 
     || (verifiedTokenData?.payload ? {
         po_id: verifiedTokenData.payload.po_id,
         po_number: verifiedTokenData.payload.po_number || verifiedTokenData.payload.po_id,
@@ -443,7 +478,10 @@ export default function MobileCapturePWA({
         supplier_name: verifiedTokenData.payload.supplier_name || 'Authorized Supplier',
         total_amount: verifiedTokenData.payload.total_amount || 0,
         items: verifiedTokenData.payload.items || []
-      } : null);
+      } : null)
+    || pos.find(p => p.po_id === selectedPoId || p.po_number === selectedPoId) 
+    || pos[0]
+    || null;
 
   const activePoItems = activePoObject?.items || activePoObject?.line_items || [];
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -532,6 +570,11 @@ export default function MobileCapturePWA({
               }}
               style={{ width: '100%', background: '#18181b', color: '#fafafa', border: '1px solid rgba(255, 255, 255, 0.1)', borderRadius: '6px', padding: '9px 12px', fontSize: '13px' }}
             >
+              {verifiedTokenData?.purchase_order && !pos.some(p => p.po_id === verifiedTokenData.purchase_order.po_id || p.po_number === verifiedTokenData.purchase_order.po_number) && (
+                <option value={verifiedTokenData.purchase_order.po_id}>
+                  ⭐ [Gate Pass Scanned] {verifiedTokenData.purchase_order.project_name} &bull; {verifiedTokenData.purchase_order.po_number} ({verifiedTokenData.purchase_order.supplier_name})
+                </option>
+              )}
               {pos.map(p => (
                 <option key={p.po_id} value={p.po_id}>
                   {p.project_name} &bull; {p.po_number} ({p.supplier_name})

@@ -180,7 +180,7 @@ function handleLocalFallback(endpoint, options = {}) {
     const logs = getStored(STORAGE_KEYS.AUDIT_LOGS, []);
     const inventory = getStored(STORAGE_KEYS.INVENTORY, []);
 
-    const poId = `po-${Date.now()}`;
+    const poId = body.po_id || body.po_number || `po-${Date.now()}`;
     const siteId = body.site_id || `site-${(body.custom_site_name || 'site').toLowerCase().replace(/[^a-z0-9]/g, '-')}`;
     const siteName = body.custom_site_name || (sites.find(s => s.site_id === siteId)?.project_name) || 'Project Site';
 
@@ -189,13 +189,22 @@ function handleLocalFallback(endpoint, options = {}) {
       return sum + (Number(item.quantity || item.quantity_authorized || 0) * Number(item.unit_price || 0));
     }, 0);
 
+    const itemsList = (body.line_items || []).map((it, idx) => ({
+      item_code: it.item_code || `MAT-00${idx + 1}`,
+      description: it.description || 'Material',
+      quantity: Number(it.quantity || 1),
+      unit_price: Number(it.unit_price || 0),
+      unit: it.unit || 'Units'
+    }));
+
     const token = generateClientToken({
       po_id: poId,
       po_number: body.po_number,
       site_id: siteId,
       project_name: siteName,
       supplier_name: body.supplier_name,
-      total_amount: totalAmount
+      total_amount: totalAmount,
+      items: itemsList
     });
 
     const newPo = {
