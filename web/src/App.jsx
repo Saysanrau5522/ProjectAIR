@@ -25,6 +25,7 @@ export default function App() {
   const [reconciliations, setReconciliations] = useState([]);
   const [auditLogs, setAuditLogs] = useState([]);
   const [activeTab, setActiveTab] = useState('OVERVIEW');
+  const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
   
   // Modals for PO & Invoice Creation
   const [isCreatePoOpen, setIsCreatePoOpen] = useState(false);
@@ -305,6 +306,13 @@ export default function App() {
 
   return (
     <div className="app-shell">
+      {/* Mobile Drawer Overlay Backdrop */}
+      <div 
+        className={`sidebar-backdrop ${isMobileNavOpen ? 'visible' : ''}`}
+        onClick={() => setIsMobileNavOpen(false)}
+        aria-hidden="true"
+      />
+
       {/* Sleek shadcn-style Collapsible Sidebar */}
       <Sidebar
         activeTab={activeTab}
@@ -313,6 +321,8 @@ export default function App() {
         sitesCount={sites.length}
         currentRole={currentRole}
         actorId={actorId}
+        isOpen={isMobileNavOpen}
+        onClose={() => setIsMobileNavOpen(false)}
       />
 
       <div className="app-main">
@@ -325,6 +335,7 @@ export default function App() {
           onRefresh={fetchAllData}
           onOpenCreatePo={() => handleOpenCreatePo(null)}
           onOpenCreateInvoice={() => setIsCreateInvoiceOpen(true)}
+          onToggleMobileNav={() => setIsMobileNavOpen(!isMobileNavOpen)}
           loading={loading}
         />
 

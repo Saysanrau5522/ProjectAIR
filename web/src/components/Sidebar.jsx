@@ -13,7 +13,8 @@ import {
   Award, 
   UserCheck, 
   Boxes,
-  FileSpreadsheet
+  FileSpreadsheet,
+  X
 } from 'lucide-react';
 
 export default function Sidebar({
@@ -23,10 +24,17 @@ export default function Sidebar({
   sitesCount = 0,
   currentRole,
   actorId,
-  inventoryCriticalCount = 0
+  inventoryCriticalCount = 0,
+  isOpen = false,
+  onClose
 }) {
+  const handleTabClick = (tab) => {
+    setActiveTab(tab);
+    if (onClose) onClose();
+  };
+
   return (
-    <aside className="app-sidebar">
+    <aside className={`app-sidebar ${isOpen ? 'open' : ''}`}>
       {/* Workspace Brand Header */}
       <div className="sidebar-header">
         <div className="workspace-badge">
@@ -38,6 +46,16 @@ export default function Sidebar({
             <span className="workspace-tag">Enterprise Cloud</span>
           </div>
         </div>
+
+        {/* Mobile Drawer Close Button */}
+        <button 
+          className="sidebar-close-btn"
+          onClick={onClose}
+          aria-label="Close menu"
+          title="Close menu"
+        >
+          <X size={18} />
+        </button>
       </div>
 
       {/* Navigation Sections */}
@@ -48,7 +66,7 @@ export default function Sidebar({
           
           <button 
             className={`sidebar-link ${activeTab === 'OVERVIEW' ? 'active' : ''}`}
-            onClick={() => setActiveTab('OVERVIEW')}
+            onClick={() => handleTabClick('OVERVIEW')}
           >
             <div className="sidebar-link-content">
               <LayoutDashboard size={16} />
@@ -58,7 +76,7 @@ export default function Sidebar({
 
           <button 
             className={`sidebar-link ${activeTab === 'MATRIX' ? 'active' : ''}`}
-            onClick={() => setActiveTab('MATRIX')}
+            onClick={() => handleTabClick('MATRIX')}
           >
             <div className="sidebar-link-content">
               <Layers size={16} />
@@ -78,7 +96,7 @@ export default function Sidebar({
 
           <button 
             className={`sidebar-link ${activeTab === 'APPROVALS' ? 'active' : ''}`}
-            onClick={() => setActiveTab('APPROVALS')}
+            onClick={() => handleTabClick('APPROVALS')}
           >
             <div className="sidebar-link-content">
               <CheckCircle2 size={16} color="var(--accent-emerald)" />
@@ -93,7 +111,7 @@ export default function Sidebar({
 
           <button 
             className={`sidebar-link ${activeTab === 'DISCREPANCIES' ? 'active' : ''}`}
-            onClick={() => setActiveTab('DISCREPANCIES')}
+            onClick={() => handleTabClick('DISCREPANCIES')}
           >
             <div className="sidebar-link-content">
               <AlertTriangle size={16} color="var(--accent-amber)" />
@@ -108,7 +126,7 @@ export default function Sidebar({
 
           <button 
             className={`sidebar-link ${activeTab === 'OCR_REVIEW' ? 'active' : ''}`}
-            onClick={() => setActiveTab('OCR_REVIEW')}
+            onClick={() => handleTabClick('OCR_REVIEW')}
           >
             <div className="sidebar-link-content">
               <Eye size={16} color="var(--accent-cyan)" />
@@ -123,7 +141,7 @@ export default function Sidebar({
 
           <button 
             className={`sidebar-link ${activeTab === 'AUDIT_LOGS' ? 'active' : ''}`}
-            onClick={() => setActiveTab('AUDIT_LOGS')}
+            onClick={() => handleTabClick('AUDIT_LOGS')}
           >
             <div className="sidebar-link-content">
               <ShieldCheck size={16} />
@@ -138,7 +156,7 @@ export default function Sidebar({
 
           <button 
             className={`sidebar-link ${activeTab === 'INVENTORY' ? 'active' : ''}`}
-            onClick={() => setActiveTab('INVENTORY')}
+            onClick={() => handleTabClick('INVENTORY')}
           >
             <div className="sidebar-link-content">
               <Package size={16} />
@@ -153,7 +171,7 @@ export default function Sidebar({
 
           <button 
             className={`sidebar-link ${activeTab === 'SITES' ? 'active' : ''}`}
-            onClick={() => setActiveTab('SITES')}
+            onClick={() => handleTabClick('SITES')}
           >
             <div className="sidebar-link-content">
               <Building2 size={16} />
@@ -168,7 +186,7 @@ export default function Sidebar({
 
           <button 
             className={`sidebar-link ${activeTab === 'MOBILE_PWA' ? 'active' : ''}`}
-            onClick={() => setActiveTab('MOBILE_PWA')}
+            onClick={() => handleTabClick('MOBILE_PWA')}
           >
             <div className="sidebar-link-content">
               <Smartphone size={16} />
@@ -178,7 +196,7 @@ export default function Sidebar({
 
           <button 
             className={`sidebar-link ${activeTab === 'QR_TOKENS' ? 'active' : ''}`}
-            onClick={() => setActiveTab('QR_TOKENS')}
+            onClick={() => handleTabClick('QR_TOKENS')}
           >
             <div className="sidebar-link-content">
               <QrCode size={16} />
@@ -193,7 +211,7 @@ export default function Sidebar({
 
           <button 
             className={`sidebar-link ${activeTab === 'VENDOR_RISK' ? 'active' : ''}`}
-            onClick={() => setActiveTab('VENDOR_RISK')}
+            onClick={() => handleTabClick('VENDOR_RISK')}
           >
             <div className="sidebar-link-content">
               <Award size={16} color="var(--accent-purple)" />
