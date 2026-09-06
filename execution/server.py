@@ -10,6 +10,7 @@ import uuid
 import time
 import base64
 import urllib.parse
+import re
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from pathlib import Path
 
@@ -246,6 +247,8 @@ class ProjectAIRRequestHandler(BaseHTTPRequestHandler):
         except ValueError as ve:
             self._send_error(f"400 Bad Request: {ve}", 400)
         except Exception as e:
+            import traceback
+            traceback.print_exc()
             self._send_error(f"500 Internal Server Error: {e}", 500)
 
     # -------------------------------------------------------------
@@ -345,25 +348,35 @@ class ProjectAIRRequestHandler(BaseHTTPRequestHandler):
         self._send_json(tokens)
 
     def _handle_get_sites(self):
-        sites = execute_query("SELECT DISTINCT project_site_id as site_id, project_name FROM purchase_orders ORDER BY project_name")
-        known = {s["site_id"]: s["project_name"] for s in sites}
-        defaults = [
-            {"site_id": "SITE-ALPHA-WEST", "project_name": "West Coast Logistics Hub"},
-            {"site_id": "SITE-BETA-TOWER", "project_name": "Skyline Horizon Tower B"},
-            {"site_id": "SITE-GAMMA-BRIDGE", "project_name": "Harbor Rail Crossing Bridge"},
-            {"site_id": "SITE-DELTA-METRO", "project_name": "Downtown Central Metro Station"}
-        ]
-        for d in defaults:
-            if d["site_id"] not in known:
-                sites.append(d)
+        sites = execute_query("""
+            SELECT DISTINCT project_site_id as site_id, project_name 
+            FROM purchase_orders 
+            WHERE project_site_id IS NOT NULL AND project_site_id != '' 
+            ORDER BY project_name
+        """)
         self._send_json(sites)
 
     def _handle_create_po(self, body, actor_id):
         po_number = (body.get("po_number") or "").strip()
         if not po_number:
             po_number = f"PO-2026-{uuid.uuid4().hex[:3].upper()}"
-        project_site_id = (body.get("project_site_id") or "SITE-ALPHA-WEST").strip()
-        project_name = (body.get("project_name") or "General Construction Site").strip()
+        
+        custom_site_name = (body.get("custom_site_name") or "").strip()
+        project_name = (body.get("project_name") or custom_site_name or "").strip()
+        project_site_id = (body.get("site_id") or body.get("project_site_id") or "").strip()
+
+        if not project_site_id:
+            if project_name:
+                clean_slug = re.sub(r'[^A-Z0-9]', '', project_name.upper())[:10]
+                project_site_id = f"SITE-{clean_slug}" if clean_slug else f"SITE-{uuid.uuid4().hex[:6].upper()}"
+            else:
+                project_site_id = f"SITE-{uuid.uuid4().hex[:6].upper()}"
+                project_name = "Main Construction Site"
+        else:
+            if not project_name:
+                found = execute_query("SELECT project_name FROM purchase_orders WHERE project_site_id = ? LIMIT 1", (project_site_id,))
+                project_name = found[0]["project_name"] if found else project_site_id
+
         supplier_name = (body.get("supplier_name") or "Standard Supplier Corp").strip()
         issue_date = (body.get("issue_date") or "").strip() or time.strftime("%Y-%m-%d")
         line_items = body.get("line_items", [])
@@ -432,20 +445,22 @@ class ProjectAIRRequestHandler(BaseHTTPRequestHandler):
         })
 
     def _handle_create_invoice(self, body, actor_id):
-        po_id = body.get("po_id") or "PO-2026-001"
-        supplier_name = body.get("supplier_name") or "Supplier Corp"
+        po_id = (body.get("po_id") or "").strip()
+        supplier_name = (body.get("supplier_name") or "Supplier Corp").strip()
         invoice_date = (body.get("invoice_date") or "").strip() or time.strftime("%Y-%m-%d")
         line_items = body.get("line_items", [])
         total_amount = sum(float(it.get("quantity_billed", 0)) * float(it.get("unit_price", 0)) for it in line_items)
 
-        pos = execute_query("SELECT * FROM purchase_orders WHERE po_id = ? OR po_number = ?", (po_id, po_id))
+        pos = []
+        if po_id:
+            pos = execute_query("SELECT * FROM purchase_orders WHERE po_id = ? OR po_number = ?", (po_id, po_id))
         if not pos:
             # Auto-create parent PO record to satisfy relational integrity and enable matching
             new_po_id = f"PO-{uuid.uuid4().hex[:6].upper()}"
-            po_num = po_id if po_id.startswith("PO-") else f"PO-{po_id}"
-            first_site = execute_query("SELECT site_id, name FROM project_sites LIMIT 1")
-            site_id = first_site[0]["site_id"] if first_site else "SITE-ALPHA-WEST"
-            site_name = first_site[0]["name"] if first_site else "Job Site Alpha"
+            po_num = po_id if (po_id and po_id.startswith("PO-")) else f"PO-{uuid.uuid4().hex[:4].upper()}"
+            first_site = execute_query("SELECT project_site_id as site_id, project_name FROM purchase_orders WHERE project_site_id IS NOT NULL AND project_site_id != '' LIMIT 1")
+            site_id = first_site[0]["site_id"] if first_site else f"SITE-{uuid.uuid4().hex[:6].upper()}"
+            site_name = first_site[0]["project_name"] if first_site else "General Project Site"
             execute_insert("""
                 INSERT INTO purchase_orders (po_id, po_number, project_site_id, project_name, supplier_name, issue_date, total_amount, status)
                 VALUES (?, ?, ?, ?, ?, ?, ?, 'OPEN')
@@ -525,19 +540,19 @@ class ProjectAIRRequestHandler(BaseHTTPRequestHandler):
                 
         if not po_id:
             # Site-level fallback when DO lacks HQ PO number
-            po_id = body.get("po_id")
-            site_id = body.get("site_id") or "SITE-ALPHA-WEST"
-            if not po_id:
+            site_id = body.get("site_id") or ""
+            if not po_id and site_id:
                 supp = body.get("supplier_name", "Supplier Corp")
                 mat = body.get("material_description", "Materials")
                 po_id = auto_bind_delivery_order(site_id, supp, mat)
             if not po_id:
-                open_pos = execute_query("SELECT po_id FROM purchase_orders WHERE project_site_id = ? AND status != 'LOCKED' ORDER BY created_at ASC", (site_id,))
-                if open_pos:
-                    po_id = open_pos[0]["po_id"]
-                else:
+                if site_id:
+                    open_pos = execute_query("SELECT po_id FROM purchase_orders WHERE project_site_id = ? AND status != 'LOCKED' ORDER BY created_at ASC", (site_id,))
+                    if open_pos:
+                        po_id = open_pos[0]["po_id"]
+                if not po_id:
                     first_po = execute_query("SELECT po_id FROM purchase_orders LIMIT 1")
-                    po_id = first_po[0]["po_id"] if first_po else "PO-2026-001"
+                    po_id = first_po[0]["po_id"] if first_po else None
         
         # Decode image or use mock bytes
         if image_base64:
@@ -679,7 +694,7 @@ class ProjectAIRRequestHandler(BaseHTTPRequestHandler):
                 po_data["line_items"] = po_items
                 
         invoice_number = f"INV-{uuid.uuid4().hex[:4].upper()}"
-        supplier_name = po_data.get("supplier_name", "MegaMix Cement & Concrete Corp")
+        supplier_name = po_data.get("supplier_name", "Supplier Corp")
         invoice_date = time.strftime("%Y-%m-%d")
         
         if po_data.get("line_items"):
@@ -696,14 +711,14 @@ class ProjectAIRRequestHandler(BaseHTTPRequestHandler):
                     "gl_category": gl_pred["gl_category"]
                 })
         else:
-            gl_pred = predict_gl_code("Ready-Mix Concrete Grade 30")
+            gl_pred = predict_gl_code("General Materials & Supplies")
             line_items = [
                 {
-                    "description": "Ready-Mix Concrete Grade 30",
-                    "quantity_billed": 50.0,
-                    "unit": "Cu M",
-                    "unit_price": 110.0,
-                    "total_price": 5500.0,
+                    "description": "General Materials & Supplies",
+                    "quantity_billed": 1.0,
+                    "unit": "Units",
+                    "unit_price": 0.0,
+                    "total_price": 0.0,
                     "gl_code": gl_pred["gl_code"],
                     "gl_category": gl_pred["gl_category"]
                 }

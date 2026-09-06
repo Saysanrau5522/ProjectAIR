@@ -34,8 +34,14 @@ export default function CreatePoModal({
     if (initialSiteId) {
       setSelectedSiteId(initialSiteId);
       setIsCustomSite(false);
-    } else if (sites.length > 0 && !selectedSiteId) {
-      setSelectedSiteId(sites[0].site_id);
+    } else if (sites.length > 0) {
+      if (!selectedSiteId || !sites.some(s => s.site_id === selectedSiteId)) {
+        setSelectedSiteId(sites[0].site_id);
+      }
+      setIsCustomSite(false);
+    } else {
+      setIsCustomSite(true);
+      setSelectedSiteId('');
     }
   }, [initialSiteId, sites, isOpen]);
 
@@ -215,7 +221,7 @@ export default function CreatePoModal({
                 <label style={{ fontSize: '12px', fontWeight: '500', color: 'var(--text-secondary)', display: 'block', marginBottom: '6px' }}>
                   Project Site
                 </label>
-                {!isCustomSite ? (
+                {!isCustomSite && sites.length > 0 ? (
                   <select 
                     value={selectedSiteId}
                     onChange={(e) => setSelectedSiteId(e.target.value)}
@@ -230,20 +236,26 @@ export default function CreatePoModal({
                 ) : (
                   <input 
                     type="text"
-                    placeholder="e.g., Riverside Bay Towers Ph 2"
+                    placeholder="e.g. Tapak Pembinaan TRX / Klang Valley Depot"
                     value={customSiteName}
                     onChange={(e) => setCustomSiteName(e.target.value)}
                     style={{ width: '100%', background: '#18181b', color: '#fafafa', border: '1px solid rgba(255, 255, 255, 0.1)', borderRadius: '6px', padding: '8px 10px', fontSize: '13px' }}
                     required
                   />
                 )}
-                <button 
-                  type="button" 
-                  onClick={() => setIsCustomSite(!isCustomSite)} 
-                  style={{ background: 'none', border: 'none', color: '#38bdf8', fontSize: '11px', cursor: 'pointer', marginTop: '5px', padding: 0 }}
-                >
-                  {isCustomSite ? '← Select existing site' : '+ Add new site location'}
-                </button>
+                {sites.length > 0 ? (
+                  <button 
+                    type="button" 
+                    onClick={() => setIsCustomSite(!isCustomSite)} 
+                    style={{ background: 'none', border: 'none', color: '#38bdf8', fontSize: '11px', cursor: 'pointer', marginTop: '5px', padding: 0 }}
+                  >
+                    {isCustomSite ? '← Select existing site' : '+ Add new site location'}
+                  </button>
+                ) : (
+                  <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px' }}>
+                    Type your project site location name above.
+                  </div>
+                )}
               </div>
 
               <div>
@@ -252,7 +264,7 @@ export default function CreatePoModal({
                 </label>
                 <input 
                   type="text"
-                  placeholder="e.g. Apex Concrete Corp"
+                  placeholder="e.g. Pembekal Simen Sdn Bhd / Lafarge / YTL"
                   value={supplierName}
                   onChange={(e) => setSupplierName(e.target.value)}
                   style={{ width: '100%', background: '#18181b', color: '#fafafa', border: '1px solid rgba(255, 255, 255, 0.1)', borderRadius: '6px', padding: '8px 10px', fontSize: '13px' }}
@@ -319,7 +331,7 @@ export default function CreatePoModal({
                           <td>
                             <input 
                               type="text" 
-                              placeholder="e.g. Portland Cement Grade 42.5"
+                              placeholder="e.g. Portland Cement Grade 42.5 / High Tensile Rebar"
                               value={item.description} 
                               onChange={(e) => handleItemChange(idx, 'description', e.target.value)}
                               style={{ width: '100%', background: '#18181b', color: '#fff', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '4px', padding: '5px 7px', fontSize: '12px' }}

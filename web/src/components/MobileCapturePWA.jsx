@@ -14,7 +14,7 @@ export default function MobileCapturePWA({
   const [usePinMode, setUsePinMode] = useState(false);
 
   const [verifiedTokenData, setVerifiedTokenData] = useState(null);
-  const [supervisorPhone, setSupervisorPhone] = useState('+1-555-019-2834');
+  const [supervisorPhone, setSupervisorPhone] = useState('+60-12-345-6789');
   const [selectedFile, setSelectedFile] = useState(null);
   const [previewUrl, setPreviewUrl] = useState(null);
   const [isUploading, setIsUploading] = useState(false);
@@ -22,7 +22,7 @@ export default function MobileCapturePWA({
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [offlineQueue, setOfflineQueue] = useState([]);
   const [simulateCrumpled, setSimulateCrumpled] = useState(false);
-  const [overrideQty, setOverrideQty] = useState('800');
+  const [overrideQty, setOverrideQty] = useState('');
 
   // Camera QR Scanner state
   const [isScanningQr, setIsScanningQr] = useState(false);
@@ -169,7 +169,7 @@ export default function MobileCapturePWA({
 
     const payload = {
       po_id: targetPo?.po_id || selectedPoId,
-      site_id: targetPo?.project_site_id || selectedSiteId || 'SITE-ALPHA-WEST',
+      site_id: targetPo?.project_site_id || selectedSiteId || (pos[0]?.project_site_id || ''),
       supervisor_phone: supervisorPhone,
       file_name: selectedFile ? selectedFile.name : (isUnder85 ? 'crumpled_dirty_do.png' : 'clean_site_do.jpg'),
       file_path: isUnder85 ? '/crumpled_dirty_do.png' : '/clean_site_do.jpg',

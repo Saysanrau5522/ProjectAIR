@@ -19,18 +19,18 @@ export default function CreateInvoiceModal({
   onOpenCreatePo
 }) {
   const [selectedPoId, setSelectedPoId] = useState(pos[0]?.po_id || '');
-  const [customPoNumber, setCustomPoNumber] = useState('PO-2026-001');
-  const [customSupplierName, setCustomSupplierName] = useState('MegaMix Concrete Sdn Bhd');
+  const [customPoNumber, setCustomPoNumber] = useState('');
+  const [customSupplierName, setCustomSupplierName] = useState('');
   const [invoiceNumber, setInvoiceNumber] = useState(`INV-${Math.floor(1000 + Math.random() * 9000)}`);
   const [invoiceDate, setInvoiceDate] = useState(new Date().toISOString().split('T')[0]);
   
-  // Default with at least 1 editable line item so user can immediately type details
+  // Clean initial line item ready for typing
   const [lineItems, setLineItems] = useState([
     {
-      description: 'Ready-Mix Concrete Grade 30',
-      quantity_billed: 50,
-      unit: 'Cu M',
-      unit_price: 110
+      description: '',
+      quantity_billed: 1,
+      unit: 'Units',
+      unit_price: 0
     }
   ]);
 
@@ -296,7 +296,7 @@ export default function CreateInvoiceModal({
                   type="text"
                   value={customPoNumber}
                   onChange={(e) => setCustomPoNumber(e.target.value)}
-                  placeholder="e.g. PO-2026-001"
+                  placeholder="e.g. PO-2026-101"
                   style={{ width: '100%', background: '#18181b', color: '#fafafa', border: '1px solid rgba(255, 255, 255, 0.1)', borderRadius: '6px', padding: '8px 10px', fontSize: '13px', fontFamily: 'var(--font-mono)' }}
                   required
                 />
@@ -320,7 +320,7 @@ export default function CreateInvoiceModal({
                   type="text"
                   value={customSupplierName}
                   onChange={(e) => setCustomSupplierName(e.target.value)}
-                  placeholder="e.g. MegaMix Concrete Sdn Bhd"
+                  placeholder="e.g. Syarikat Pembekal / YTL Cement Sdn Bhd"
                   style={{ width: '100%', background: '#18181b', color: '#fafafa', border: '1px solid rgba(255, 255, 255, 0.1)', borderRadius: '6px', padding: '8px 10px', fontSize: '13px' }}
                   required
                 />

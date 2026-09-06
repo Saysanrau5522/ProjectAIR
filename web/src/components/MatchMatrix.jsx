@@ -34,7 +34,7 @@ export default function MatchMatrix({
   const [disputeModalOpen, setDisputeModalOpen] = useState(false);
   const [resolveModalOpen, setResolveModalOpen] = useState(false);
   const [shortPayModalOpen, setShortPayModalOpen] = useState(false);
-  const [vendorEmail, setVendorEmail] = useState('ar-disputes@megamix-cement.com');
+  const [vendorEmail, setVendorEmail] = useState('');
   const [resolveNotes, setResolveNotes] = useState('');
   const [disputeReason, setDisputeReason] = useState('');
 
@@ -379,6 +379,7 @@ export default function MatchMatrix({
                 <input 
                   type="email" 
                   className="form-input" 
+                  placeholder="e.g. ar-disputes@vendor.com"
                   value={vendorEmail}
                   onChange={(e) => setVendorEmail(e.target.value)}
                 />

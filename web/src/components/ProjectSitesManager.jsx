@@ -35,8 +35,24 @@ export default function ProjectSitesManager({
         </div>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))', gap: '18px' }}>
-        {sites.map(site => {
+      {sites.length === 0 ? (
+        <div style={{ textAlign: 'center', padding: '56px 20px', background: '#141418', borderRadius: '10px', border: '1px dashed rgba(255, 255, 255, 0.1)' }}>
+          <div style={{ width: '48px', height: '48px', borderRadius: '12px', background: 'rgba(56, 189, 248, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
+            <Building size={24} color="#38bdf8" />
+          </div>
+          <h3 style={{ fontSize: '16px', fontWeight: '600', color: '#fff', marginBottom: '6px' }}>
+            No Project Sites Registered Yet
+          </h3>
+          <p style={{ color: 'var(--text-secondary)', fontSize: '13px', maxWidth: '440px', margin: '0 auto 20px', lineHeight: 1.5 }}>
+            Issue your first Purchase Order to establish a job site location. Each project site will automatically receive its own intake gateway, spend ledger, and delivery pass.
+          </p>
+          <button className="btn-modern btn-modern-primary" onClick={() => onOpenCreatePo()}>
+            <Plus size={14} /> Issue First Purchase Order
+          </button>
+        </div>
+      ) : (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))', gap: '18px' }}>
+          {sites.map(site => {
           const sitePos = pos.filter(p => p.project_site_id === site.site_id);
           const totalSpend = sitePos.reduce((sum, p) => sum + (p.total_amount || 0), 0);
 
@@ -118,7 +134,8 @@ export default function ProjectSitesManager({
             </div>
           );
         })}
-      </div>
+        </div>
+      )}
     </div>
   );
 }
