@@ -2,6 +2,7 @@
   "name": "project-air",
   "version": "1.0.0",
   "private": true,
+  "type": "module",
   "scripts": {
     "build": "npm --prefix web run build",
     "dev": "npm --prefix web run dev",

@@ -7,6 +7,8 @@ web/node_modules/
 dist/
 web/dist/
 build/
+.wrangler/
+.wrangler-dist/
 
 # Environment Variables & Secrets
 .env

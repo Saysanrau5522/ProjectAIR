@@ -33,6 +33,8 @@ function generateEdgeToken(payload, secret = 'air_edge_secret_8842') {
   });
   const sig = btoa(secret + '.' + h + '.' + p).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
   return `${h}.${p}.${sig}`;
+}
+
 function ensureEdgeBaseline() {
   if (edgeSites.length === 0) {
     edgeSites = [
