@@ -796,10 +796,43 @@ export default function DocumentExportModal({
               </div>
             )}
 
-            {/* Document Security Footnote */}
-            <div className="doc-system-footnote">
-              <div>PROJECT AIR CONCURRENT FINANCIAL INTELLIGENCE &bull; SYSTEM HASH: SHA256-ED25519-VAL-{activePo?.po_id || '2026'}</div>
-              <div>Generated electronically in accordance with the Malaysian Electronic Commerce Act 2006 (Act 658) and admissible under Section 90A of the Evidence Act 1950.</div>
+            {/* Document Security Footnote (Standard Fine-Print Footer) */}
+            <div 
+              className="doc-system-footnote"
+              style={{
+                marginTop: '20px',
+                paddingTop: '8px',
+                borderTop: '1px solid #e2e8f0',
+                fontSize: '8px',
+                lineHeight: '1.35',
+                color: '#64748b',
+                textAlign: 'left'
+              }}
+            >
+              <div 
+                className="doc-footnote-hash"
+                style={{
+                  fontFamily: 'var(--font-mono, monospace)',
+                  fontSize: '7.5px',
+                  fontWeight: '600',
+                  color: '#475569',
+                  letterSpacing: '0.04em',
+                  marginBottom: '2px',
+                  textTransform: 'uppercase'
+                }}
+              >
+                PROJECT AIR CONCURRENT FINANCIAL INTELLIGENCE &bull; SYSTEM HASH: SHA256-ED25519-VAL-{activePo?.po_id || '2026'}
+              </div>
+              <div 
+                className="doc-footnote-legal"
+                style={{
+                  fontSize: '7.5px',
+                  color: '#64748b',
+                  lineHeight: '1.3'
+                }}
+              >
+                Generated electronically in accordance with the Malaysian Electronic Commerce Act 2006 (Act 658) and admissible under Section 90A of the Evidence Act 1950.
+              </div>
             </div>
 
           </div>

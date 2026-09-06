@@ -1863,6 +1863,35 @@ html, body {
   background: #f8fafc;
 }
 
+/* Document Security Footnote (Standard Fine-Print 8px Document Footer) */
+.doc-system-footnote {
+  margin-top: 20px;
+  padding-top: 8px;
+  border-top: 1px solid #e2e8f0;
+  font-size: 8px !important;
+  line-height: 1.35 !important;
+  color: #64748b !important;
+  text-align: left;
+}
+
+.doc-footnote-hash,
+.doc-system-footnote > div:first-child {
+  font-family: var(--font-mono, monospace);
+  font-size: 7.5px !important;
+  font-weight: 600 !important;
+  color: #475569 !important;
+  letter-spacing: 0.04em !important;
+  margin-bottom: 2px !important;
+  text-transform: uppercase;
+}
+
+.doc-footnote-legal,
+.doc-system-footnote > div:last-child {
+  font-size: 7.5px !important;
+  color: #64748b !important;
+  line-height: 1.3 !important;
+}
+
 /* Document Modal Responsive Adjustments */
 @media (max-width: 900px) {
   .doc-modal-overlay {
