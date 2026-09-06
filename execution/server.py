@@ -230,6 +230,15 @@ class ProjectAIRRequestHandler(BaseHTTPRequestHandler):
             elif path == "/api/invoices/extract":
                 self._handle_extract_invoice(body)
 
+            elif path == "/api/sites/delete":
+                self._handle_delete_site(body, actor_id)
+
+            elif path == "/api/inventory/delete":
+                self._handle_delete_inventory(body, actor_id)
+
+            elif path == "/api/inventory/threshold":
+                self._handle_update_threshold(body, actor_id)
+
             elif path == "/api/inventory/reorder":
                 stock_id = body.get("stock_id")
                 result = create_draft_replenishment_po(stock_id, actor_id)
@@ -367,6 +376,117 @@ class ProjectAIRRequestHandler(BaseHTTPRequestHandler):
         """)
         self._send_json(sites)
 
+    def _handle_delete_site(self, body, actor_id):
+        site_id = body.get("site_id")
+        if not site_id:
+            raise ValueError("site_id is required")
+
+        conn = get_connection()
+        cursor = conn.cursor()
+        try:
+            cursor.execute("SELECT po_id FROM purchase_orders WHERE project_site_id = ?", (site_id,))
+            po_rows = cursor.fetchall()
+            po_ids = [row["po_id"] for row in po_rows]
+
+            for pid in po_ids:
+                cursor.execute("SELECT do_id FROM delivery_orders WHERE po_id = ?", (pid,))
+                for do_row in cursor.fetchall():
+                    cursor.execute("DELETE FROM do_line_items WHERE do_id = ?", (do_row["do_id"],))
+                cursor.execute("DELETE FROM delivery_orders WHERE po_id = ?", (pid,))
+
+                cursor.execute("SELECT invoice_id FROM invoices WHERE po_id = ?", (pid,))
+                for inv_row in cursor.fetchall():
+                    cursor.execute("DELETE FROM invoice_line_items WHERE invoice_id = ?", (inv_row["invoice_id"],))
+                    cursor.execute("DELETE FROM reconciliation_items WHERE reconciliation_id IN (SELECT reconciliation_id FROM reconciliations WHERE invoice_id = ?)", (inv_row["invoice_id"],))
+                    cursor.execute("DELETE FROM reconciliations WHERE invoice_id = ?", (inv_row["invoice_id"],))
+                cursor.execute("DELETE FROM invoices WHERE po_id = ?", (pid,))
+
+                cursor.execute("DELETE FROM po_line_items WHERE po_id = ?", (pid,))
+                cursor.execute("DELETE FROM qr_tokens WHERE po_id = ?", (pid,))
+                cursor.execute("DELETE FROM purchase_orders WHERE po_id = ?", (pid,))
+
+            cursor.execute("DELETE FROM inventory_stocks WHERE site_id = ?", (site_id,))
+            cursor.execute("DELETE FROM qr_tokens WHERE site_id = ?", (site_id,))
+
+            cursor.execute("""
+                INSERT INTO audit_logs (entity_type, entity_id, actor_id, actor_role, action, metadata)
+                VALUES ('SITE', ?, ?, 'ADMIN', 'SITE_PURGED', ?)
+            """, (site_id, actor_id, f"Permanently deleted site {site_id} and all related contracts to reclaim database space."))
+
+            conn.commit()
+            self._send_json({"status": "success", "message": f"Site {site_id} permanently deleted."})
+        finally:
+            conn.close()
+
+    def _handle_delete_inventory(self, body, actor_id):
+        stock_id = body.get("stock_id")
+        if not stock_id:
+            raise ValueError("stock_id is required")
+
+        conn = get_connection()
+        cursor = conn.cursor()
+        try:
+            cursor.execute("SELECT item_code, description FROM inventory_stocks WHERE stock_id = ?", (stock_id,))
+            stk = cursor.fetchone()
+            desc = stk["description"] if stk else stock_id
+
+            cursor.execute("DELETE FROM inventory_stocks WHERE stock_id = ?", (stock_id,))
+            cursor.execute("""
+                INSERT INTO audit_logs (entity_type, entity_id, actor_id, actor_role, action, metadata)
+                VALUES ('INVENTORY', ?, ?, 'ADMIN', 'MATERIAL_PURGED', ?)
+            """, (stock_id, actor_id, f"Permanently deleted material {desc} from inventory."))
+
+            conn.commit()
+            self._send_json({"status": "success", "message": "Material deleted successfully."})
+        finally:
+            conn.close()
+
+    def _handle_update_threshold(self, body, actor_id):
+        stock_id = body.get("stock_id")
+        item_code = body.get("item_code", "")
+        description = body.get("description", "")
+        min_reorder_level = float(body.get("min_reorder_level", 5.0))
+        reorder_quantity = float(body.get("reorder_quantity", 100.0))
+
+        conn = get_connection()
+        cursor = conn.cursor()
+        try:
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS item_threshold_presets (
+                    item_code TEXT PRIMARY KEY,
+                    description TEXT,
+                    min_reorder_level REAL,
+                    reorder_quantity REAL,
+                    updated_at TEXT DEFAULT (datetime('now'))
+                )
+            """)
+
+            if stock_id:
+                cursor.execute("""
+                    UPDATE inventory_stocks 
+                    SET min_reorder_level = ?, reorder_quantity = ?, updated_at = datetime('now')
+                    WHERE stock_id = ?
+                """, (min_reorder_level, reorder_quantity, stock_id))
+
+            sku_key = (item_code or description).strip().upper()
+            if sku_key:
+                cursor.execute("""
+                    INSERT INTO item_threshold_presets (item_code, description, min_reorder_level, reorder_quantity, updated_at)
+                    VALUES (?, ?, ?, ?, datetime('now'))
+                    ON CONFLICT(item_code) DO UPDATE SET
+                        min_reorder_level = excluded.min_reorder_level,
+                        reorder_quantity = excluded.reorder_quantity,
+                        updated_at = datetime('now')
+                """, (sku_key, description, min_reorder_level, reorder_quantity))
+
+            conn.commit()
+            self._send_json({
+                "status": "success", 
+                "message": f"Threshold updated and preset saved for SKU {sku_key} (Min: {min_reorder_level}, Batch: {reorder_quantity})."
+            })
+        finally:
+            conn.close()
+
     def _handle_create_po(self, body, actor_id):
         po_number = (body.get("po_number") or "").strip()
         if not po_number:
@@ -441,13 +561,31 @@ class ProjectAIRRequestHandler(BaseHTTPRequestHandler):
             existing_stock = cursor.fetchone()
             if not existing_stock:
                 stock_id = f"STK-{uuid.uuid4().hex[:6].upper()}"
-                min_reorder = max(5.0, round(qty * 0.2, 1))
+                # Check if user has saved a custom threshold preset for this SKU
+                cursor.execute("""
+                    CREATE TABLE IF NOT EXISTS item_threshold_presets (
+                        item_code TEXT PRIMARY KEY,
+                        description TEXT,
+                        min_reorder_level REAL,
+                        reorder_quantity REAL,
+                        updated_at TEXT DEFAULT (datetime('now'))
+                    )
+                """)
+                cursor.execute("SELECT min_reorder_level, reorder_quantity FROM item_threshold_presets WHERE UPPER(item_code) = ? OR UPPER(description) = ?", (item_code.upper(), desc.upper()))
+                preset = cursor.fetchone()
+                if preset:
+                    min_reorder = float(preset["min_reorder_level"])
+                    batch_qty = float(preset["reorder_quantity"])
+                else:
+                    min_reorder = max(5.0, round(qty * 0.2, 1))
+                    batch_qty = qty
+
                 cursor.execute("""
                     INSERT INTO inventory_stocks (
                         stock_id, site_id, item_code, description, current_quantity,
                         unit, min_reorder_level, reorder_quantity, last_delivery_date
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """, (stock_id, project_site_id, item_code, desc, 0.0, unit, min_reorder, qty, issue_date))
+                    ) VALUES (?, ?, ?, ?, 0.0, ?, ?, ?, ?)
+                """, (stock_id, project_site_id, item_code, desc, unit, min_reorder, batch_qty, issue_date))
 
         # Automatically generate a signed scoped QR token for this PO & Site!
         token = generate_scoped_token(

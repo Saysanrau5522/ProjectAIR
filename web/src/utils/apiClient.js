@@ -14,7 +14,9 @@ const STORAGE_KEYS = {
   SITES: 'project_air_sites_v2',
   RECONCILIATIONS: 'project_air_reconciliations_v2',
   AUDIT_LOGS: 'project_air_audit_logs_v2',
-  INVENTORY: 'project_air_inventory_v2'
+  INVENTORY: 'project_air_inventory_v2',
+  DOS: 'project_air_dos_v2',
+  THRESHOLD_PRESETS: 'project_air_threshold_presets_v2'
 };
 
 // Generate a client-side HMAC-SHA256 compliant JWT token
@@ -218,17 +220,24 @@ function handleLocalFallback(endpoint, options = {}) {
     const updatedPos = [newPo, ...pos];
     setStored(STORAGE_KEYS.POS, updatedPos);
 
-    // Update Inventory SKUs for this site
+    // Update Inventory SKUs for this site with threshold presets
     const currentInventory = getStored(STORAGE_KEYS.INVENTORY, []);
     const updatedInventory = [...currentInventory];
+    const presets = getStored(STORAGE_KEYS.THRESHOLD_PRESETS, {});
+
     newPo.items.forEach((it, idx) => {
       const existingIdx = updatedInventory.findIndex(s => s.site_id === siteId && s.item_code === it.item_code);
       const qty = Number(it.quantity || 1);
-      const minReorder = Math.max(5, Math.round(qty * 0.2));
+      const skuKey = (it.item_code || it.description || '').toUpperCase().trim();
+      const preset = presets[skuKey];
+      const minReorder = preset ? Number(preset.min_reorder_level) : Math.max(5, Math.round(qty * 0.2));
+      const batchQty = preset ? Number(preset.reorder_quantity) : qty;
+
       if (existingIdx >= 0) {
         updatedInventory[existingIdx] = {
           ...updatedInventory[existingIdx],
-          current_quantity: (Number(updatedInventory[existingIdx].current_quantity) || 0) + qty,
+          reorder_quantity: batchQty,
+          min_reorder_level: minReorder,
           last_delivery_date: newPo.issue_date
         };
       } else {
@@ -238,12 +247,12 @@ function handleLocalFallback(endpoint, options = {}) {
           project_name: siteName,
           item_code: it.item_code,
           description: it.description,
-          current_quantity: qty,
+          current_quantity: 0,
           unit: it.unit || 'Units',
           min_reorder_level: minReorder,
-          reorder_quantity: qty,
-          stock_status: qty <= minReorder ? 'CRITICAL_LOW' : 'OPTIMAL',
-          status_label: qty <= minReorder ? 'CRITICAL: REORDER REQUIRED' : 'HEALTHY STOCK LEVEL',
+          reorder_quantity: batchQty,
+          stock_status: 'CRITICAL_LOW',
+          status_label: 'PENDING FIRST DELIVERY INTAKE',
           last_delivery_date: newPo.issue_date,
           unit_price: it.unit_price || 0
         });
@@ -284,18 +293,172 @@ function handleLocalFallback(endpoint, options = {}) {
     };
   }
 
-  // 7. POST /invoices/create
+  // 6b. POST /sites/delete (Hard Purge Site and all allocated records)
+  if (endpoint === '/sites/delete' && method === 'POST') {
+    const siteId = body.site_id;
+    if (!siteId) return { error: 'site_id is required' };
+
+    const sites = getStored(STORAGE_KEYS.SITES, []);
+    const pos = getStored(STORAGE_KEYS.POS, []);
+    const inv = getStored(STORAGE_KEYS.INVENTORY, []);
+    const recs = getStored(STORAGE_KEYS.RECONCILIATIONS, []);
+    const dos = getStored(STORAGE_KEYS.DOS, []);
+    const logs = getStored(STORAGE_KEYS.AUDIT_LOGS, []);
+
+    const deletedPos = pos.filter(p => p.project_site_id === siteId);
+    const poIdsToDelete = new Set(deletedPos.map(p => p.po_id));
+
+    setStored(STORAGE_KEYS.SITES, sites.filter(s => s.site_id !== siteId));
+    setStored(STORAGE_KEYS.POS, pos.filter(p => p.project_site_id !== siteId));
+    setStored(STORAGE_KEYS.INVENTORY, inv.filter(s => s.site_id !== siteId));
+    setStored(STORAGE_KEYS.RECONCILIATIONS, recs.filter(r => !poIdsToDelete.has(r.po_id)));
+    setStored(STORAGE_KEYS.DOS, dos.filter(d => d.site_id !== siteId && !poIdsToDelete.has(d.po_id)));
+
+    const newLog = {
+      log_id: `log-${Date.now()}`,
+      action: 'SITE_DELETED',
+      actor_id: options.headers?.['X-Actor-Id'] || 'EXECUTIVE_ADMIN',
+      actor_role: options.headers?.['X-Actor-Role'] || 'ADMIN',
+      details: `Permanently removed site ${siteId} and purged associated contracts.`,
+      timestamp: new Date().toISOString()
+    };
+    setStored(STORAGE_KEYS.AUDIT_LOGS, [newLog, ...logs]);
+
+    return { status: 'success', message: `Site ${siteId} permanently purged.` };
+  }
+
+  // 6c. POST /inventory/delete (Hard Purge Material SKU)
+  if (endpoint === '/inventory/delete' && method === 'POST') {
+    const stockId = body.stock_id;
+    if (!stockId) return { error: 'stock_id is required' };
+
+    const inv = getStored(STORAGE_KEYS.INVENTORY, []);
+    const target = inv.find(s => s.stock_id === stockId);
+    setStored(STORAGE_KEYS.INVENTORY, inv.filter(s => s.stock_id !== stockId));
+
+    const logs = getStored(STORAGE_KEYS.AUDIT_LOGS, []);
+    const newLog = {
+      log_id: `log-${Date.now()}`,
+      action: 'MATERIAL_PURGED',
+      actor_id: options.headers?.['X-Actor-Id'] || 'QS_ADMIN',
+      actor_role: options.headers?.['X-Actor-Role'] || 'ADMIN',
+      details: `Permanently deleted material SKU ${target?.item_code || stockId} to free database storage.`,
+      timestamp: new Date().toISOString()
+    };
+    setStored(STORAGE_KEYS.AUDIT_LOGS, [newLog, ...logs]);
+
+    return { status: 'success', message: 'Material permanently deleted from database.' };
+  }
+
+  // 6d. POST /inventory/threshold (Editable Threshold & SKU Preset)
+  if (endpoint === '/inventory/threshold' && method === 'POST') {
+    const { stock_id, item_code, description, min_reorder_level, reorder_quantity } = body;
+    const minLevel = Number(min_reorder_level) || 5;
+    const batchQty = Number(reorder_quantity) || 100;
+
+    const inv = getStored(STORAGE_KEYS.INVENTORY, []);
+    const updatedInv = inv.map(item => {
+      if (item.stock_id === stock_id) {
+        const cur = Number(item.current_quantity) || 0;
+        return {
+          ...item,
+          min_reorder_level: minLevel,
+          reorder_quantity: batchQty,
+          stock_status: cur <= minLevel ? 'CRITICAL_LOW' : 'OPTIMAL',
+          status_label: cur <= minLevel ? 'CRITICAL: REORDER REQUIRED' : 'HEALTHY STOCK LEVEL'
+        };
+      }
+      return item;
+    });
+    setStored(STORAGE_KEYS.INVENTORY, updatedInv);
+
+    // Save SKU preset
+    const presets = getStored(STORAGE_KEYS.THRESHOLD_PRESETS, {});
+    const key = (item_code || description || '').toUpperCase().trim();
+    if (key) {
+      presets[key] = { min_reorder_level: minLevel, reorder_quantity: batchQty, item_code, description };
+      setStored(STORAGE_KEYS.THRESHOLD_PRESETS, presets);
+    }
+
+    return {
+      status: 'success',
+      message: `Safety threshold updated (Min: ${minLevel}, Batch: ${batchQty}). Preset saved for future orders of SKU ${item_code}.`
+    };
+  }
+
+  // 7. POST /invoices/create (Strict 3-Way Match Triangulation)
   if (endpoint === '/invoices/create' && method === 'POST') {
     const pos = getStored(STORAGE_KEYS.POS, []);
     const recs = getStored(STORAGE_KEYS.RECONCILIATIONS, []);
+    const dos = getStored(STORAGE_KEYS.DOS, []);
     const logs = getStored(STORAGE_KEYS.AUDIT_LOGS, []);
 
-    const targetPo = pos.find(p => p.po_id === body.po_id) || pos[0] || {};
+    const targetPo = pos.find(p => p.po_id === body.po_id || p.po_number === body.po_id) || pos[0] || {};
     const invTotal = (body.line_items || []).reduce((sum, item) => sum + (Number(item.quantity_billed || 0) * Number(item.unit_price || 0)), 0);
     const poTotal = targetPo.total_amount || invTotal;
 
-    const overpayment = Math.max(0, invTotal - poTotal);
-    const matchStatus = overpayment > 0 ? 'DISCREPANCY_FLAGGED' : 'READY_FOR_APPROVAL';
+    // Find all confirmed DOs for this PO
+    const confirmedDos = dos.filter(d => (d.po_id === targetPo.po_id || d.po_id === targetPo.po_number) && d.status === 'CONFIRMED');
+
+    let hasDiscrepancy = false;
+    let totalOverpaymentBlocked = 0.0;
+    let totalVerifiedPayable = 0.0;
+
+    const recItems = (body.line_items || []).map((it, idx) => {
+      const billedQty = Number(it.quantity_billed || 0);
+      const unitPrice = Number(it.unit_price || 0);
+
+      // Find delivered quantity across confirmed physical DOs
+      let cumulativeDelivered = 0;
+      confirmedDos.forEach(d => {
+        (d.items || []).forEach(dItem => {
+          const descA = (dItem.description || '').toLowerCase().trim();
+          const descB = (it.description || '').toLowerCase().trim();
+          const matchDesc = descA && descB && (descA.includes(descB) || descB.includes(descA));
+          const matchCode = dItem.item_code && it.item_code && dItem.item_code === it.item_code;
+          if (matchDesc || matchCode) {
+            cumulativeDelivered += Number(dItem.quantity_received || dItem.quantity_delivered || 0);
+          }
+        });
+      });
+
+      // 3-Way Triangulation check:
+      const varianceQty = billedQty - cumulativeDelivered;
+      let itemOverpayment = 0.0;
+      let discrepancyType = 'NONE';
+
+      if (billedQty > 0 && cumulativeDelivered === 0) {
+        // PHYSICAL RECEIPT MISSING: 0 intake verified at gate pass!
+        hasDiscrepancy = true;
+        discrepancyType = 'UNRECEIVED_MATERIAL';
+        itemOverpayment = billedQty * unitPrice;
+      } else if (varianceQty > 0) {
+        hasDiscrepancy = true;
+        discrepancyType = 'QUANTITY_OVERBILLING';
+        itemOverpayment = varianceQty * unitPrice;
+      }
+
+      const verifiedQty = Math.min(cumulativeDelivered, billedQty);
+      const verifiedPayable = verifiedQty * unitPrice;
+
+      totalVerifiedPayable += verifiedPayable;
+      totalOverpaymentBlocked += itemOverpayment;
+
+      return {
+        item_code: it.item_code || `MAT-00${idx + 1}`,
+        description: it.description,
+        po_quantity: Number(it.quantity_ordered || billedQty),
+        po_unit_price: unitPrice,
+        cumulative_delivered_qty: cumulativeDelivered,
+        cumulative_billed_qty: billedQty,
+        variance_qty: varianceQty,
+        discrepancy_type: discrepancyType,
+        verified_payable_amount: verifiedPayable
+      };
+    });
+
+    // If no DO has been uploaded or delivered qty is less than claimed, FLAG DISCREPANCY and BLOCK OVERPAYMENT!
+    const matchStatus = (hasDiscrepancy || totalOverpaymentBlocked > 0) ? 'DISCREPANCY_FLAGGED' : 'READY_FOR_APPROVAL';
 
     const newRec = {
       reconciliation_id: `rec-${Date.now()}`,
@@ -306,17 +469,11 @@ function handleLocalFallback(endpoint, options = {}) {
       project_name: targetPo.project_name || 'Project Site',
       po_total_amount: poTotal,
       invoice_total_amount: invTotal,
-      total_overpayment_blocked: overpayment,
+      total_overpayment_blocked: totalOverpaymentBlocked,
+      verified_payable_amount: totalVerifiedPayable,
       match_status: matchStatus,
-      items: (body.line_items || []).map((it, idx) => ({
-        item_code: it.item_code || `MAT-00${idx + 1}`,
-        description: it.description,
-        po_quantity: it.quantity_billed,
-        po_unit_price: it.unit_price,
-        cumulative_delivered_qty: it.quantity_billed,
-        cumulative_billed_qty: it.quantity_billed,
-        verified_payable_amount: it.quantity_billed * it.unit_price
-      }))
+      has_discrepancy: hasDiscrepancy,
+      items: recItems
     };
 
     setStored(STORAGE_KEYS.RECONCILIATIONS, [newRec, ...recs]);
@@ -419,16 +576,38 @@ function handleLocalFallback(endpoint, options = {}) {
     const doNumber = `DO-${Date.now().toString().slice(-4)}`;
     const items = body.extracted_line_items || [];
     
+    // Record in STORAGE_KEYS.DOS for 3-Way Matching
+    const dos = getStored(STORAGE_KEYS.DOS, []);
+    const newDo = {
+      do_id: `do-${Date.now()}`,
+      do_number: doNumber,
+      po_id: targetPo.po_id,
+      site_id: body.site_id || targetPo.project_site_id,
+      delivery_date: new Date().toISOString().split('T')[0],
+      status: 'CONFIRMED',
+      items: items.map(it => ({
+        item_code: it.item_code,
+        description: it.description,
+        quantity_received: Number(it.quantity_delivered || it.quantity_received || 0),
+        unit: it.unit || 'Units'
+      }))
+    };
+    setStored(STORAGE_KEYS.DOS, [newDo, ...dos]);
+
     // Increment inventory current_quantity
     const inventory = getStored(STORAGE_KEYS.INVENTORY, []);
     const updatedInventory = [...inventory];
     items.forEach(it => {
       const idx = updatedInventory.findIndex(s => s.site_id === (body.site_id || targetPo.project_site_id) && s.item_code === it.item_code);
       if (idx >= 0) {
+        const qtyReceived = Number(it.quantity_delivered || it.quantity_received || 0);
+        const newQty = (Number(updatedInventory[idx].current_quantity) || 0) + qtyReceived;
         updatedInventory[idx] = {
           ...updatedInventory[idx],
-          current_quantity: (Number(updatedInventory[idx].current_quantity) || 0) + (Number(it.quantity_delivered) || 0),
-          last_delivery_date: new Date().toISOString().split('T')[0]
+          current_quantity: newQty,
+          last_delivery_date: new Date().toISOString().split('T')[0],
+          stock_status: newQty <= Number(updatedInventory[idx].min_reorder_level) ? 'CRITICAL_LOW' : 'OPTIMAL',
+          status_label: newQty <= Number(updatedInventory[idx].min_reorder_level) ? 'CRITICAL: REORDER REQUIRED' : 'HEALTHY STOCK LEVEL'
         };
       }
     });

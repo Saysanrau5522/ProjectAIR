@@ -9,6 +9,8 @@ let edgeSites = [];
 let edgeReconciliations = [];
 let edgeAuditLogs = [];
 let edgeInventory = [];
+let edgeDeliveryOrders = [];
+let edgeThresholdPresets = {};
 
 function jsonResponse(data, status = 200) {
   return new Response(JSON.stringify(data, null, 2), {
@@ -182,11 +184,16 @@ async function handleApiRequest(request, url) {
       newPo.items.forEach((it, idx) => {
         const existingIdx = edgeInventory.findIndex(s => s.site_id === siteId && s.item_code === it.item_code);
         const qty = Number(it.quantity || 1);
-        const minReorder = Math.max(5, Math.round(qty * 0.2));
+        const skuKey = (it.item_code || it.description || '').toUpperCase().trim();
+        const preset = edgeThresholdPresets[skuKey];
+        const minReorder = preset ? Number(preset.min_reorder_level) : Math.max(5, Math.round(qty * 0.2));
+        const batchQty = preset ? Number(preset.reorder_quantity) : qty;
+
         if (existingIdx >= 0) {
           edgeInventory[existingIdx] = {
             ...edgeInventory[existingIdx],
-            current_quantity: (Number(edgeInventory[existingIdx].current_quantity) || 0) + qty,
+            reorder_quantity: batchQty,
+            min_reorder_level: minReorder,
             last_delivery_date: newPo.issue_date
           };
         } else {
@@ -196,12 +203,12 @@ async function handleApiRequest(request, url) {
             project_name: siteName,
             item_code: it.item_code,
             description: it.description,
-            current_quantity: qty,
+            current_quantity: 0,
             unit: it.unit || 'Units',
             min_reorder_level: minReorder,
-            reorder_quantity: qty,
-            stock_status: qty <= minReorder ? 'CRITICAL_LOW' : 'OPTIMAL',
-            status_label: qty <= minReorder ? 'CRITICAL: REORDER REQUIRED' : 'HEALTHY STOCK LEVEL',
+            reorder_quantity: batchQty,
+            stock_status: 'CRITICAL_LOW',
+            status_label: 'PENDING FIRST DELIVERY INTAKE',
             last_delivery_date: newPo.issue_date,
             unit_price: it.unit_price || 0
           });
@@ -236,6 +243,34 @@ async function handleApiRequest(request, url) {
     return jsonResponse(edgeSites);
   }
 
+  if (path === '/sites/delete' && method === 'POST') {
+    try {
+      const body = await request.json();
+      const siteId = body.site_id;
+      if (!siteId) return jsonResponse({ error: 'site_id is required' }, 400);
+
+      const poIdsToDelete = new Set(edgePos.filter(p => p.project_site_id === siteId).map(p => p.po_id));
+      edgeSites = edgeSites.filter(s => s.site_id !== siteId);
+      edgePos = edgePos.filter(p => p.project_site_id !== siteId);
+      edgeInventory = edgeInventory.filter(s => s.site_id !== siteId);
+      edgeReconciliations = edgeReconciliations.filter(r => !poIdsToDelete.has(r.po_id));
+      edgeDeliveryOrders = edgeDeliveryOrders.filter(d => d.site_id !== siteId && !poIdsToDelete.has(d.po_id));
+
+      edgeAuditLogs.unshift({
+        log_id: `log-${Date.now()}`,
+        action: 'SITE_DELETED',
+        actor_id: request.headers.get('X-Actor-Id') || 'EXECUTIVE_ADMIN',
+        actor_role: request.headers.get('X-Actor-Role') || 'ADMIN',
+        details: `Permanently removed site ${siteId} and reclaimed database storage.`,
+        timestamp: new Date().toISOString()
+      });
+
+      return jsonResponse({ status: 'success', message: `Site ${siteId} and all associated records permanently purged.` });
+    } catch (err) {
+      return jsonResponse({ error: err.message }, 400);
+    }
+  }
+
   // 4b. Inventory Ledger
   if (path === '/inventory' && method === 'GET') {
     const siteFilter = url.searchParams.get('site_id');
@@ -243,6 +278,69 @@ async function handleApiRequest(request, url) {
       return jsonResponse(edgeInventory.filter(s => s.site_id === siteFilter));
     }
     return jsonResponse(edgeInventory);
+  }
+
+  if (path === '/inventory/delete' && method === 'POST') {
+    try {
+      const body = await request.json();
+      const stockId = body.stock_id;
+      if (!stockId) return jsonResponse({ error: 'stock_id is required' }, 400);
+
+      const deletedStock = edgeInventory.find(s => s.stock_id === stockId);
+      edgeInventory = edgeInventory.filter(s => s.stock_id !== stockId);
+
+      edgeAuditLogs.unshift({
+        log_id: `log-${Date.now()}`,
+        action: 'MATERIAL_PURGED',
+        actor_id: request.headers.get('X-Actor-Id') || 'QS_ADMIN',
+        actor_role: request.headers.get('X-Actor-Role') || 'ADMIN',
+        details: `Permanently purged material ${deletedStock?.description || stockId} (SKU: ${deletedStock?.item_code || 'N/A'}) to save space.`,
+        timestamp: new Date().toISOString()
+      });
+
+      return jsonResponse({ status: 'success', message: 'Material permanently deleted from database.' });
+    } catch (err) {
+      return jsonResponse({ error: err.message }, 400);
+    }
+  }
+
+  if (path === '/inventory/threshold' && method === 'POST') {
+    try {
+      const body = await request.json();
+      const { stock_id, item_code, description, min_reorder_level, reorder_quantity } = body;
+      const minLevel = Number(min_reorder_level) || 5;
+      const batchQty = Number(reorder_quantity) || 100;
+
+      // Update active stock item
+      if (stock_id) {
+        const item = edgeInventory.find(s => s.stock_id === stock_id);
+        if (item) {
+          item.min_reorder_level = minLevel;
+          item.reorder_quantity = batchQty;
+          item.stock_status = Number(item.current_quantity) <= minLevel ? 'CRITICAL_LOW' : 'OPTIMAL';
+          item.status_label = item.stock_status === 'CRITICAL_LOW' ? 'CRITICAL: REORDER REQUIRED' : 'HEALTHY STOCK LEVEL';
+        }
+      }
+
+      // Save SKU preset for future POs
+      const key = (item_code || description || '').toUpperCase().trim();
+      if (key) {
+        edgeThresholdPresets[key] = {
+          min_reorder_level: minLevel,
+          reorder_quantity: batchQty,
+          item_code,
+          description
+        };
+      }
+
+      return jsonResponse({
+        status: 'success',
+        message: `Safety threshold updated (Min: ${minLevel}, Batch: ${batchQty}). Preset saved for future orders of SKU ${item_code || description}.`,
+        preset: { min_reorder_level: minLevel, reorder_quantity: batchQty }
+      });
+    } catch (err) {
+      return jsonResponse({ error: err.message }, 400);
+    }
   }
 
   if (path === '/inventory/reorder' && method === 'POST') {
@@ -257,15 +355,78 @@ async function handleApiRequest(request, url) {
     });
   }
 
-  // 5. Invoices & 3-Way Match
+  // 5. Invoices & Strict 3-Way Match Triangulation
   if (path === '/invoices/create' && method === 'POST') {
     try {
       const body = await request.json();
-      const targetPo = edgePos.find(p => p.po_id === body.po_id) || edgePos[0] || {};
+      const targetPo = edgePos.find(p => p.po_id === body.po_id || p.po_number === body.po_id) || edgePos[0] || {};
       const invTotal = (body.line_items || []).reduce((sum, it) => sum + (Number(it.quantity_billed || 0) * Number(it.unit_price || 0)), 0);
       const poTotal = targetPo.total_amount || invTotal;
-      const overpayment = Math.max(0, invTotal - poTotal);
-      const matchStatus = overpayment > 0 ? 'DISCREPANCY_FLAGGED' : 'READY_FOR_APPROVAL';
+
+      // Find all confirmed DOs for this PO
+      const confirmedDos = edgeDeliveryOrders.filter(d => (d.po_id === targetPo.po_id || d.po_id === targetPo.po_number) && d.status === 'CONFIRMED');
+
+      let hasDiscrepancy = false;
+      let totalOverpaymentBlocked = 0.0;
+      let totalVerifiedPayable = 0.0;
+
+      const recItems = (body.line_items || []).map((it, idx) => {
+        const billedQty = Number(it.quantity_billed || 0);
+        const unitPrice = Number(it.unit_price || 0);
+
+        // Find delivered quantity for this item across confirmed physical DOs
+        let cumulativeDelivered = 0;
+        confirmedDos.forEach(d => {
+          (d.items || []).forEach(dItem => {
+            const descA = (dItem.description || '').toLowerCase().trim();
+            const descB = (it.description || '').toLowerCase().trim();
+            const matchDesc = descA && descB && (descA.includes(descB) || descB.includes(descA));
+            const matchCode = dItem.item_code && it.item_code && dItem.item_code === it.item_code;
+            if (matchDesc || matchCode) {
+              cumulativeDelivered += Number(dItem.quantity_received || dItem.quantity_delivered || 0);
+            }
+          });
+        });
+
+        // 3-Way Triangulation check:
+        const varianceQty = billedQty - cumulativeDelivered;
+        let itemOverpayment = 0.0;
+        let discrepancyType = 'NONE';
+
+        if (billedQty > 0 && cumulativeDelivered === 0) {
+          // PHYSICAL DELIVERY MISSING: 0 intake verified at gate pass!
+          hasDiscrepancy = true;
+          discrepancyType = 'UNRECEIVED_MATERIAL';
+          itemOverpayment = billedQty * unitPrice;
+        } else if (varianceQty > 0) {
+          // Billed more than actually delivered on site
+          hasDiscrepancy = true;
+          discrepancyType = 'QUANTITY_OVERBILLING';
+          itemOverpayment = varianceQty * unitPrice;
+        }
+
+        const verifiedQty = Math.min(cumulativeDelivered, billedQty);
+        const verifiedPayable = verifiedQty * unitPrice;
+
+        totalVerifiedPayable += verifiedPayable;
+        totalOverpaymentBlocked += itemOverpayment;
+
+        return {
+          item_code: it.item_code || `MAT-00${idx + 1}`,
+          description: it.description,
+          po_quantity: Number(it.quantity_ordered || billedQty),
+          po_unit_price: unitPrice,
+          cumulative_delivered_qty: cumulativeDelivered,
+          cumulative_billed_qty: billedQty,
+          variance_qty: varianceQty,
+          discrepancy_type: discrepancyType,
+          verified_payable_amount: verifiedPayable
+        };
+      });
+
+      // Strict 3-Way Determination:
+      // If no DO has been uploaded or delivered qty is less than claimed, FLAG DISCREPANCY and BLOCK FUNDS!
+      const matchStatus = (hasDiscrepancy || totalOverpaymentBlocked > 0) ? 'DISCREPANCY_FLAGGED' : 'READY_FOR_APPROVAL';
 
       const rec = {
         reconciliation_id: `rec-${Date.now()}`,
@@ -276,17 +437,11 @@ async function handleApiRequest(request, url) {
         project_name: targetPo.project_name || 'Project Site',
         po_total_amount: poTotal,
         invoice_total_amount: invTotal,
-        total_overpayment_blocked: overpayment,
+        total_overpayment_blocked: totalOverpaymentBlocked,
+        verified_payable_amount: totalVerifiedPayable,
         match_status: matchStatus,
-        items: (body.line_items || []).map((it, idx) => ({
-          item_code: it.item_code || `MAT-00${idx + 1}`,
-          description: it.description,
-          po_quantity: it.quantity_billed,
-          po_unit_price: it.unit_price,
-          cumulative_delivered_qty: it.quantity_billed,
-          cumulative_billed_qty: it.quantity_billed,
-          verified_payable_amount: it.quantity_billed * it.unit_price
-        }))
+        has_discrepancy: hasDiscrepancy,
+        items: recItems
       };
 
       edgeReconciliations.unshift(rec);
@@ -383,12 +538,32 @@ async function handleApiRequest(request, url) {
       const doNumber = `DO-${Date.now().toString().slice(-4)}`;
       const items = body.extracted_line_items || [];
 
+      // Record in edgeDeliveryOrders for 3-Way Matching
+      const newDo = {
+        do_id: `do-${Date.now()}`,
+        do_number: doNumber,
+        po_id: targetPo.po_id,
+        site_id: body.site_id || targetPo.project_site_id,
+        delivery_date: new Date().toISOString().split('T')[0],
+        status: 'CONFIRMED',
+        items: items.map(it => ({
+          item_code: it.item_code,
+          description: it.description,
+          quantity_received: Number(it.quantity_delivered || it.quantity_received || 0),
+          unit: it.unit || 'Units'
+        }))
+      };
+      edgeDeliveryOrders.push(newDo);
+
       // Increment inventory
       items.forEach(it => {
+        const qtyReceived = Number(it.quantity_delivered || it.quantity_received || 0);
         const existing = edgeInventory.find(s => s.site_id === (body.site_id || targetPo.project_site_id) && s.item_code === it.item_code);
         if (existing) {
-          existing.current_quantity = (Number(existing.current_quantity) || 0) + (Number(it.quantity_delivered) || 0);
+          existing.current_quantity = (Number(existing.current_quantity) || 0) + qtyReceived;
           existing.last_delivery_date = new Date().toISOString().split('T')[0];
+          existing.stock_status = Number(existing.current_quantity) <= Number(existing.min_reorder_level) ? 'CRITICAL_LOW' : 'OPTIMAL';
+          existing.status_label = existing.stock_status === 'CRITICAL_LOW' ? 'CRITICAL: REORDER REQUIRED' : 'HEALTHY STOCK LEVEL';
         }
       });
 

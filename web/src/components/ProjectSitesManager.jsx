@@ -1,5 +1,6 @@
-import React from 'react';
-import { Building, Plus, FileText, Smartphone, MapPin, Printer, QrCode } from 'lucide-react';
+import React, { useState } from 'react';
+import { Building, Plus, FileText, Smartphone, MapPin, Printer, QrCode, Trash2 } from 'lucide-react';
+import { apiRequest } from '../utils/apiClient';
 
 export default function ProjectSitesManager({
   sites = [],
@@ -7,8 +8,34 @@ export default function ProjectSitesManager({
   onOpenCreatePo,
   onOpenCreateInvoice,
   onSelectTokenForMobile,
-  onOpenDocModal
+  onOpenDocModal,
+  onRefresh
 }) {
+  const [deletingSiteId, setDeletingSiteId] = useState(null);
+
+  const handleDeleteSite = async (site) => {
+    const confirmed = window.confirm(
+      `Are you sure you want to permanently remove site "${site.project_name}" (${site.site_id})?\n\nThis will completely purge the site and all its linked Purchase Orders, Delivery Orders, Invoices, and Inventory Ledgers from the database to save space and cost.`
+    );
+    if (!confirmed) return;
+
+    try {
+      setDeletingSiteId(site.site_id);
+      const res = await apiRequest('/sites/delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ site_id: site.site_id })
+      });
+      if (res && res.error) {
+        throw new Error(res.error);
+      }
+      if (onRefresh) onRefresh();
+    } catch (err) {
+      alert('Failed to remove site: ' + err.message);
+    } finally {
+      setDeletingSiteId(null);
+    }
+  };
   return (
     <div className="modern-card">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '22px', flexWrap: 'wrap', gap: '14px' }}>
@@ -164,6 +191,16 @@ export default function ProjectSitesManager({
                     <Smartphone size={12} /> Mobile Intake
                   </button>
                 )}
+                <button
+                  type="button"
+                  className="btn-modern btn-modern-secondary btn-sm"
+                  style={{ color: '#ef4444', borderColor: 'rgba(239, 68, 68, 0.3)', marginLeft: 'auto' }}
+                  onClick={() => handleDeleteSite(site)}
+                  disabled={deletingSiteId === site.site_id}
+                  title="Permanently remove this site and all associated database records to save space"
+                >
+                  <Trash2 size={12} color="#ef4444" /> {deletingSiteId === site.site_id ? 'Purging...' : 'Remove Site'}
+                </button>
               </div>
             </div>
           );

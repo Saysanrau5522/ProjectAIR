@@ -10,7 +10,12 @@ import {
   Check, 
   QrCode,
   Layers,
-  TrendingDown
+  TrendingDown,
+  Edit2,
+  Trash2,
+  X,
+  Save,
+  CheckCircle
 } from 'lucide-react';
 
 import { getApiBase } from '../utils/token';
@@ -26,6 +31,74 @@ export default function InventoryManager({ onRefreshLedger }) {
   const [loading, setLoading] = useState(true);
   const [reorderingId, setReorderingId] = useState(null);
   const [reorderSuccessModal, setReorderSuccessModal] = useState(null);
+
+  // Threshold editing state
+  const [editingStockId, setEditingStockId] = useState(null);
+  const [editMinLevel, setEditMinLevel] = useState('');
+  const [editBatchQty, setEditBatchQty] = useState('');
+  const [savingThresholdId, setSavingThresholdId] = useState(null);
+  const [deletingStockId, setDeletingStockId] = useState(null);
+  const [feedbackToast, setFeedbackToast] = useState(null);
+
+  const handleStartEditThreshold = (stock) => {
+    setEditingStockId(stock.stock_id);
+    setEditMinLevel(stock.min_reorder_level);
+    setEditBatchQty(stock.reorder_quantity);
+  };
+
+  const handleSaveThreshold = async (stock) => {
+    try {
+      setSavingThresholdId(stock.stock_id);
+      const minVal = parseFloat(editMinLevel) || 5;
+      const batchVal = parseFloat(editBatchQty) || 100;
+      const res = await apiRequest('/inventory/threshold', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          stock_id: stock.stock_id,
+          item_code: stock.item_code,
+          description: stock.description,
+          min_reorder_level: minVal,
+          reorder_quantity: batchVal
+        })
+      });
+      if (res && res.error) throw new Error(res.error);
+      setFeedbackToast(`Safety threshold saved for SKU "${stock.item_code}" (Min: ${minVal}, Batch: ${batchVal}). Future POs for this item will automatically use this threshold!`);
+      setTimeout(() => setFeedbackToast(null), 6000);
+      setEditingStockId(null);
+      await fetchInventory();
+      if (onRefreshLedger) onRefreshLedger();
+    } catch (err) {
+      alert('Failed to update threshold: ' + err.message);
+    } finally {
+      setSavingThresholdId(null);
+    }
+  };
+
+  const handleDeleteMaterial = async (stock) => {
+    const confirmed = window.confirm(
+      `Are you sure you want to remove material "${stock.description}" (SKU: ${stock.item_code}) from the site inventory and database?\n\nThis will permanently delete this record from the database to save storage space.`
+    );
+    if (!confirmed) return;
+
+    try {
+      setDeletingStockId(stock.stock_id);
+      const res = await apiRequest('/inventory/delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ stock_id: stock.stock_id })
+      });
+      if (res && res.error) throw new Error(res.error);
+      setFeedbackToast(`Material "${stock.description}" (${stock.item_code}) permanently removed from database.`);
+      setTimeout(() => setFeedbackToast(null), 4000);
+      await fetchInventory();
+      if (onRefreshLedger) onRefreshLedger();
+    } catch (err) {
+      alert('Failed to delete material: ' + err.message);
+    } finally {
+      setDeletingStockId(null);
+    }
+  };
 
   const fetchInventory = async () => {
     try {
@@ -185,6 +258,32 @@ export default function InventoryManager({ onRefreshLedger }) {
         </div>
       </div>
 
+      {/* Feedback Toast Notification */}
+      {feedbackToast && (
+        <div style={{
+          background: 'rgba(16, 185, 129, 0.12)',
+          border: '1px solid rgba(16, 185, 129, 0.3)',
+          borderRadius: '8px',
+          padding: '12px 16px',
+          marginBottom: '16px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '10px',
+          color: '#10b981',
+          fontSize: '13px'
+        }}>
+          <CheckCircle size={16} style={{ flexShrink: 0 }} />
+          <span style={{ flex: 1 }}>{feedbackToast}</span>
+          <button 
+            type="button" 
+            onClick={() => setFeedbackToast(null)}
+            style={{ background: 'transparent', border: 'none', color: '#10b981', cursor: 'pointer' }}
+          >
+            <X size={14} />
+          </button>
+        </div>
+      )}
+
       {/* Inventory Table */}
       <div className="modern-card">
         <div className="modern-table-wrapper">
@@ -197,7 +296,7 @@ export default function InventoryManager({ onRefreshLedger }) {
                 <th>Safety Threshold</th>
                 <th>Stock Status</th>
                 <th>Last Receipt</th>
-                <th style={{ textAlign: 'right' }}>Replenishment Action</th>
+                <th style={{ textAlign: 'right' }}>Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -212,6 +311,7 @@ export default function InventoryManager({ onRefreshLedger }) {
                   const curr = parseFloat(stock.current_quantity) || 0;
                   const min = parseFloat(stock.min_reorder_level) || 1;
                   const pct = Math.min(100, Math.round((curr / (min * 2)) * 100));
+                  const isEditingThis = editingStockId === stock.stock_id;
 
                   return (
                     <tr key={stock.stock_id}>
@@ -247,12 +347,83 @@ export default function InventoryManager({ onRefreshLedger }) {
                       </td>
 
                       <td>
-                        <div className="tabular-nums" style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
-                          Min: <strong style={{ color: '#FFF' }}>{stock.min_reorder_level}</strong> {stock.unit}
-                        </div>
-                        <div className="tabular-nums" style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
-                          Batch: +{stock.reorder_quantity} {stock.unit}
-                        </div>
+                        {isEditingThis ? (
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '5px', minWidth: '160px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '11px' }}>
+                              <span style={{ color: 'var(--text-muted)', width: '38px' }}>Min:</span>
+                              <input
+                                type="number"
+                                value={editMinLevel}
+                                onChange={(e) => setEditMinLevel(e.target.value)}
+                                style={{ 
+                                  background: '#18181b', 
+                                  border: '1px solid rgba(255, 255, 255, 0.2)', 
+                                  borderRadius: '4px', 
+                                  color: '#fff', 
+                                  padding: '2px 6px', 
+                                  fontSize: '12px', 
+                                  width: '70px' 
+                                }}
+                              />
+                            </div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '11px' }}>
+                              <span style={{ color: 'var(--text-muted)', width: '38px' }}>Batch:</span>
+                              <input
+                                type="number"
+                                value={editBatchQty}
+                                onChange={(e) => setEditBatchQty(e.target.value)}
+                                style={{ 
+                                  background: '#18181b', 
+                                  border: '1px solid rgba(255, 255, 255, 0.2)', 
+                                  borderRadius: '4px', 
+                                  color: '#fff', 
+                                  padding: '2px 6px', 
+                                  fontSize: '12px', 
+                                  width: '70px' 
+                                }}
+                              />
+                            </div>
+                            <div style={{ display: 'flex', gap: '4px', marginTop: '3px' }}>
+                              <button
+                                type="button"
+                                className="btn-modern btn-modern-primary btn-xs"
+                                style={{ padding: '2px 7px', fontSize: '11px' }}
+                                onClick={() => handleSaveThreshold(stock)}
+                                disabled={savingThresholdId === stock.stock_id}
+                              >
+                                <Save size={10} /> {savingThresholdId === stock.stock_id ? 'Saving...' : 'Save Preset'}
+                              </button>
+                              <button
+                                type="button"
+                                className="btn-modern btn-modern-secondary btn-xs"
+                                style={{ padding: '2px 6px', fontSize: '11px' }}
+                                onClick={() => setEditingStockId(null)}
+                              >
+                                <X size={10} />
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
+                            <div>
+                              <div className="tabular-nums" style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
+                                Min: <strong style={{ color: '#FFF' }}>{stock.min_reorder_level}</strong> {stock.unit}
+                              </div>
+                              <div className="tabular-nums" style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                                Batch: +{stock.reorder_quantity} {stock.unit}
+                              </div>
+                            </div>
+                            <button
+                              type="button"
+                              className="btn-modern btn-modern-secondary btn-xs"
+                              style={{ padding: '2px 6px', fontSize: '10px' }}
+                              onClick={() => handleStartEditThreshold(stock)}
+                              title="Edit minimum threshold & order batch quantity (saves as SKU preset for future POs)"
+                            >
+                              <Edit2 size={10} /> Edit
+                            </button>
+                          </div>
+                        )}
                       </td>
 
                       <td>
@@ -277,15 +448,27 @@ export default function InventoryManager({ onRefreshLedger }) {
                         {stock.last_delivery_date || 'N/A'}
                       </td>
 
-                      <td style={{ textAlign: 'right' }}>
-                        <button
-                          className={`btn btn-sm ${stock.stock_status === 'CRITICAL_LOW' ? 'btn-primary' : 'btn-outline'}`}
-                          onClick={() => handleDraftReorderPo(stock)}
-                          disabled={reorderingId === stock.stock_id}
-                          style={{ whiteSpace: 'nowrap' }}
-                        >
-                          <Zap size={13} /> {reorderingId === stock.stock_id ? 'Drafting...' : 'Draft PO'}
-                        </button>
+                      <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
+                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                          <button
+                            className={`btn btn-sm ${stock.stock_status === 'CRITICAL_LOW' ? 'btn-primary' : 'btn-outline'}`}
+                            onClick={() => handleDraftReorderPo(stock)}
+                            disabled={reorderingId === stock.stock_id}
+                            style={{ whiteSpace: 'nowrap' }}
+                          >
+                            <Zap size={13} /> {reorderingId === stock.stock_id ? 'Drafting...' : 'Draft PO'}
+                          </button>
+                          <button
+                            type="button"
+                            className="btn btn-outline btn-sm"
+                            style={{ color: '#ef4444', borderColor: 'rgba(239, 68, 68, 0.3)', padding: '5px 7px' }}
+                            onClick={() => handleDeleteMaterial(stock)}
+                            disabled={deletingStockId === stock.stock_id}
+                            title="Permanently remove this material from database to save space"
+                          >
+                            <Trash2 size={12} color="#ef4444" />
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   );

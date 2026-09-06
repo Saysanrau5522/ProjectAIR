@@ -370,6 +370,7 @@ export default function App() {
               onOpenCreateInvoice={() => setIsCreateInvoiceOpen(true)}
               onSelectTokenForMobile={handleSelectTokenForMobile}
               onOpenDocModal={handleOpenDocModal}
+              onRefresh={fetchAllData}
             />
           )}
 
