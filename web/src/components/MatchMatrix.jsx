@@ -16,8 +16,48 @@ import {
   ExternalLink,
   Layers,
   Building,
-  Printer
+  Printer,
+  Copy,
+  Check
 } from 'lucide-react';
+
+export function generateFormalDisputeNotice(rec) {
+  if (!rec) return '';
+  if (rec.dispute_notice && rec.dispute_notice.trim().length > 0) {
+    return rec.dispute_notice;
+  }
+  const overpayment = Number(rec.total_overpayment_blocked || 0);
+  const invTotal = Number(rec.invoice_total_amount || rec.invoice_amount || 0);
+  const poTotal = Number(rec.po_total_amount || (invTotal - overpayment));
+  const poNum = rec.po_number || rec.po_id || 'PO-CONTRACT';
+  const invNum = rec.invoice_number || 'INV-PENDING';
+  const siteName = rec.project_name || 'Project Job Site';
+  const supplierName = rec.supplier_name || 'Vendor Accounts Receivable';
+
+  return `FORMAL PAYMENT DISPUTE & AUDIT VARIANCE NOTICE
+Date: ${new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}
+To: Accounts Receivable — ${supplierName}
+Reference: Purchase Order #${poNum} | Tax Invoice #${invNum}
+Job Site Location: ${siteName}
+
+NOTICE OF PAYMENT WITHHOLDING / QUANTITY & PRICE DISCREPANCY
+Please be advised that Project AIR automated 3-Way Reconciliation audit has detected variance:
+
+  • Billed Invoice Total: RM ${invTotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+  • Authorized Contract PO: RM ${poTotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+  • Disputed Variance (Overpayment Blocked): RM ${Math.max(0, overpayment).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+
+STATUTORY & CONTRACTUAL GROUNDS:
+1. Physical Site Delivery Orders (DOs) and gatekeeper intake logs do not substantiate the quantities billed.
+2. In accordance with Section 90A of the Malaysian Evidence Act 1950, automated cryptographic gate pass records and delivery dockets serve as conclusive receipt evidence.
+3. Pursuant to PAM Contract 2018 (Clause 30) interim valuation principles and CIPAA 2012 adjudication standards, payment for unverified or disputed items is withheld.
+
+REQUIRED ACTION:
+Please issue a formal Credit Note for the disputed variance of RM ${Math.max(0, overpayment).toLocaleString(undefined, { minimumFractionDigits: 2 })} or contact our commercial QS team with signed delivery docket proof.
+
+Authorized by: Commercial Accounts & Financial Controller
+Project AIR Automated Discrepancy Engine`;
+}
 
 export default function MatchMatrix({
   reconciliations = [],
@@ -36,9 +76,10 @@ export default function MatchMatrix({
   const [disputeModalOpen, setDisputeModalOpen] = useState(false);
   const [resolveModalOpen, setResolveModalOpen] = useState(false);
   const [shortPayModalOpen, setShortPayModalOpen] = useState(false);
-  const [vendorEmail, setVendorEmail] = useState('');
+  const [vendorEmail, setVendorEmail] = useState('ar-disputes@vendor-corp.com');
   const [resolveNotes, setResolveNotes] = useState('');
   const [disputeReason, setDisputeReason] = useState('');
+  const [copiedDispute, setCopiedDispute] = useState(false);
 
   const activeRec = reconciliations.find(r => r.reconciliation_id === selectedRecId) || reconciliations[0];
 
@@ -272,15 +313,19 @@ export default function MatchMatrix({
         {/* Action Controls Bar */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '18px 24px', borderTop: '1px solid var(--border-subtle)', flexWrap: 'wrap', gap: '12px' }}>
           <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-            {activeRec.dispute_notice && (
+            {/* Dispute Notice Action */}
+            {(activeRec.match_status === 'DISCREPANCY_FLAGGED' || activeRec.match_status === 'DISPUTED' || (activeRec.total_overpayment_blocked && activeRec.total_overpayment_blocked > 0) || activeRec.dispute_notice) && (
               <button 
                 className="btn btn-outline btn-sm"
                 onClick={() => {
-                  setDisputeReason(activeRec.dispute_notice);
+                  setDisputeReason(generateFormalDisputeNotice(activeRec));
+                  setCopiedDispute(false);
                   setDisputeModalOpen(true);
                 }}
+                style={{ borderColor: 'var(--accent-amber)', color: 'var(--accent-amber)' }}
+                title="Inspect formal vendor payment dispute letter or dispatch via email"
               >
-                <FileText size={14} /> Dispute Notice &amp; Email
+                <FileText size={14} /> Dispute Notice &amp; Letter
               </button>
             )}
 
@@ -331,29 +376,24 @@ export default function MatchMatrix({
             </div>
 
             <div className="modal-body">
-              <p style={{ color: 'var(--text-secondary)', fontSize: '13px', margin: '0 0 16px 0' }}>
-                Release verified deliveries immediately to protect job-site supplier credit, while withholding unverified variance under an automated debit note.
-              </p>
-
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '16px' }}>
-                <div style={{ background: 'rgba(16, 185, 129, 0.08)', border: '1px solid var(--accent-emerald-border)', padding: '14px', borderRadius: 'var(--radius-md)' }}>
-                  <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Verified Deliveries Authorized</div>
-                  <div className="tabular-nums" style={{ fontSize: '20px', fontWeight: '700', color: 'var(--accent-emerald)', marginTop: '4px' }}>
+              <div style={{ background: '#18181b', padding: '14px', borderRadius: '8px', border: '1px solid rgba(255, 255, 255, 0.08)', marginBottom: '16px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+                  <span style={{ color: 'var(--text-muted)' }}>Verified Payable (Deliveries Received):</span>
+                  <strong style={{ color: 'var(--accent-emerald)', fontFamily: 'var(--font-mono)' }}>
                     ${verifiedTotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                  </div>
+                  </strong>
                 </div>
-
-                <div style={{ background: 'rgba(239, 68, 68, 0.08)', border: '1px solid var(--accent-rose-border)', padding: '14px', borderRadius: 'var(--radius-md)' }}>
-                  <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Withheld Disputed Variance</div>
-                  <div className="tabular-nums" style={{ fontSize: '20px', fontWeight: '700', color: 'var(--accent-rose)', marginTop: '4px' }}>
-                    ${blockedTotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                  </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span style={{ color: 'var(--text-muted)' }}>Withheld Disputed Variance:</span>
+                  <strong style={{ color: 'var(--accent-rose)', fontFamily: 'var(--font-mono)' }}>
+                    ${(activeRec.total_overpayment_blocked || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                  </strong>
                 </div>
               </div>
 
-              <div style={{ background: 'var(--bg-surface-elevated)', padding: '12px 16px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-subtle)', fontSize: '12px', color: 'var(--text-muted)' }}>
-                Debit note reference will be registered in the immutable audit trail and exported to the ERP batch.
-              </div>
+              <p style={{ color: 'var(--text-secondary)', fontSize: '13px', lineHeight: 1.5, marginBottom: '14px' }}>
+                Short-Pay allows you to release payment for goods actually delivered to the site, protecting contractor supply lines while legally withholding the disputed variance under a formal Debit Note.
+              </p>
             </div>
 
             <div className="modal-footer">
@@ -361,11 +401,11 @@ export default function MatchMatrix({
               <button 
                 className="btn btn-emerald"
                 onClick={() => {
-                  onApprovePartial(activeRec.reconciliation_id);
+                  if (onApprovePartial) onApprovePartial(activeRec.reconciliation_id);
                   setShortPayModalOpen(false);
                 }}
               >
-                Confirm Short-Pay Authorization
+                <Split size={14} /> Authorize Short-Pay Voucher
               </button>
             </div>
           </div>
@@ -375,49 +415,79 @@ export default function MatchMatrix({
       {/* Dispute Notice Modal */}
       {disputeModalOpen && (
         <div className="modal-overlay">
-          <div className="modal-dialog">
+          <div className="modal-dialog" style={{ maxWidth: '680px' }}>
             <div className="modal-header">
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <FileText size={18} color="var(--accent-amber)" />
-                <h3>Formal Payment Dispute Notice</h3>
+                <h3>Formal Payment Dispute &amp; Audit Notice</h3>
               </div>
               <button className="modal-close-btn" onClick={() => setDisputeModalOpen(false)}>&times;</button>
             </div>
 
             <div className="modal-body">
               <div className="form-group">
-                <label className="form-label">Vendor AR Contact Email</label>
+                <label className="form-label">Vendor Accounts Receivable Contact Email</label>
                 <input 
                   type="email" 
                   className="form-input" 
-                  placeholder="e.g. ar-disputes@vendor.com"
+                  placeholder="e.g. ar-disputes@vendor-corp.com"
                   value={vendorEmail}
                   onChange={(e) => setVendorEmail(e.target.value)}
                 />
               </div>
 
               <div className="form-group">
-                <label className="form-label">Audit Dispute Notice Content</label>
+                <label className="form-label">Audit Dispute Notice Content (Section 90A Evidence Act 1950 &amp; PAM Contract 2018)</label>
                 <textarea 
                   className="form-textarea" 
-                  rows={6}
+                  rows={10}
+                  style={{ fontFamily: 'var(--font-mono)', fontSize: '12px', lineHeight: '1.5' }}
                   value={disputeReason}
                   onChange={(e) => setDisputeReason(e.target.value)}
                 />
               </div>
             </div>
 
-            <div className="modal-footer">
-              <button className="btn btn-secondary" onClick={() => setDisputeModalOpen(false)}>Close</button>
+            <div className="modal-footer" style={{ display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px' }}>
               <button 
-                className="btn btn-primary"
+                type="button"
+                className="btn btn-secondary btn-sm"
                 onClick={() => {
-                  if (onDispatchDispute) onDispatchDispute(activeRec.reconciliation_id, vendorEmail);
-                  setDisputeModalOpen(false);
+                  navigator.clipboard.writeText(disputeReason);
+                  setCopiedDispute(true);
+                  setTimeout(() => setCopiedDispute(false), 2000);
                 }}
               >
-                <Mail size={14} /> Send Email Notice
+                {copiedDispute ? <Check size={14} /> : <Copy size={14} />}
+                {copiedDispute ? 'Copied to Clipboard!' : 'Copy Notice Text'}
               </button>
+
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <button 
+                  type="button"
+                  className="btn btn-outline btn-sm" 
+                  onClick={() => {
+                    if (onDispute) onDispute(activeRec.reconciliation_id, disputeReason);
+                    setDisputeModalOpen(false);
+                  }}
+                  title="Freeze disbursement and permanently flag record as DISPUTED"
+                >
+                  <ShieldAlert size={14} color="var(--accent-rose)" /> File Official Dispute
+                </button>
+
+                <button 
+                  type="button"
+                  className="btn btn-primary btn-sm"
+                  onClick={() => {
+                    if (onDispatchDispute) onDispatchDispute(activeRec.reconciliation_id, vendorEmail);
+                    if (onDispute) onDispute(activeRec.reconciliation_id, disputeReason);
+                    setDisputeModalOpen(false);
+                  }}
+                  title="Dispatch email notification to vendor AR department"
+                >
+                  <Mail size={14} /> Dispatch via Email
+                </button>
+              </div>
             </div>
           </div>
         </div>

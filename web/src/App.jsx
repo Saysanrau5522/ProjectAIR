@@ -15,6 +15,7 @@ import CreateInvoiceModal from './components/CreateInvoiceModal';
 import InventoryManager from './components/InventoryManager';
 import VendorRiskScorecard from './components/VendorRiskScorecard';
 import DocumentExportModal from './components/DocumentExportModal';
+import { LayoutDashboard, GitCompare, Smartphone, Package, Building } from 'lucide-react';
 import './styles/modern-theme.css';
 import { getApiBase } from './utils/token';
 import { apiRequest } from './utils/apiClient';
@@ -403,6 +404,7 @@ export default function App() {
               initialToken={mobileToken}
               pos={pos}
               onIngestDo={handleIngestDo}
+              onRefresh={fetchAllData}
             />
           )}
 
@@ -420,6 +422,54 @@ export default function App() {
             />
           )}
         </main>
+
+        {/* Mobile & Tablet Bottom Navigation Bar */}
+        <nav className="mobile-bottom-nav">
+          <button 
+            type="button"
+            className={`mobile-bottom-nav-item ${activeTab === 'OVERVIEW' ? 'active' : ''}`}
+            onClick={() => setActiveTab('OVERVIEW')}
+          >
+            <LayoutDashboard size={18} />
+            <span>Dashboard</span>
+          </button>
+
+          <button 
+            type="button"
+            className={`mobile-bottom-nav-item ${activeTab === 'MATRIX' ? 'active' : ''}`}
+            onClick={() => setActiveTab('MATRIX')}
+          >
+            <GitCompare size={18} />
+            <span>Match Matrix</span>
+          </button>
+
+          <button 
+            type="button"
+            className={`mobile-bottom-nav-item ${activeTab === 'MOBILE_PWA' ? 'active' : ''}`}
+            onClick={() => setActiveTab('MOBILE_PWA')}
+          >
+            <Smartphone size={18} />
+            <span>Site Intake</span>
+          </button>
+
+          <button 
+            type="button"
+            className={`mobile-bottom-nav-item ${activeTab === 'INVENTORY' ? 'active' : ''}`}
+            onClick={() => setActiveTab('INVENTORY')}
+          >
+            <Package size={18} />
+            <span>Inventory</span>
+          </button>
+
+          <button 
+            type="button"
+            className={`mobile-bottom-nav-item ${activeTab === 'SITES' ? 'active' : ''}`}
+            onClick={() => setActiveTab('SITES')}
+          >
+            <Building size={18} />
+            <span>Sites</span>
+          </button>
+        </nav>
       </div>
 
       {/* Create Purchase Order Modal */}

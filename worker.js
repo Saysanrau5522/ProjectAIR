@@ -345,6 +345,13 @@ async function handleApiRequest(request, url) {
   }
 
   if (path === '/reconciliations/dispatch-dispute' && method === 'POST') {
+    const body = await request.json();
+    edgeReconciliations = edgeReconciliations.map(r => {
+      if (r.reconciliation_id === body.reconciliation_id) {
+        return { ...r, match_status: 'DISPUTED', dispute_dispatched_to: body.recipient_email };
+      }
+      return r;
+    });
     return jsonResponse({ status: 'success', message: 'Dispute notice dispatched.' });
   }
 

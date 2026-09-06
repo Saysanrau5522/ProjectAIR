@@ -275,6 +275,8 @@ def dispatch_dispute_notice(reconciliation_id: str, actor_id: str, actor_role: s
         conn.close()
         raise ValueError(f"Reconciliation '{reconciliation_id}' not found.")
 
+    cursor.execute("UPDATE reconciliations SET match_status = 'DISPUTED', updated_at = datetime('now') WHERE reconciliation_id = ?", (reconciliation_id,))
+    conn.commit()
     conn.close()
 
     log_audit_event(

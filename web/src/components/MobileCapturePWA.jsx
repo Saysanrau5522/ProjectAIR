@@ -6,7 +6,8 @@ import { parseAndValidateToken, getApiBase } from '../utils/token';
 export default function MobileCapturePWA({
   initialToken,
   pos = [],
-  onIngestDo
+  onIngestDo,
+  onRefresh
 }) {
   const [token, setToken] = useState(initialToken || '');
   const [selectedSiteId, setSelectedSiteId] = useState('');
@@ -79,9 +80,12 @@ export default function MobileCapturePWA({
   }, [token]);
 
   useEffect(() => {
-    if (pos.length > 0 && !selectedPoId) {
-      setSelectedPoId(pos[0].po_id);
-      setSelectedSiteId(pos[0].project_site_id);
+    if (pos.length > 0) {
+      const exists = pos.some(p => p.po_id === selectedPoId);
+      if (!exists || !selectedPoId) {
+        setSelectedPoId(pos[0].po_id);
+        setSelectedSiteId(pos[0].project_site_id);
+      }
     }
   }, [pos]);
 
@@ -437,22 +441,49 @@ export default function MobileCapturePWA({
         po_number: verifiedTokenData.payload.po_number || verifiedTokenData.payload.po_id,
         project_name: verifiedTokenData.payload.project_name || verifiedTokenData.payload.site_id,
         supplier_name: verifiedTokenData.payload.supplier_name || 'Authorized Supplier',
-        total_amount: verifiedTokenData.payload.total_amount || 0
+        total_amount: verifiedTokenData.payload.total_amount || 0,
+        items: verifiedTokenData.payload.items || []
       } : null);
+
+  const activePoItems = activePoObject?.items || activePoObject?.line_items || [];
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  const handleManualRefresh = async () => {
+    if (!onRefresh) return;
+    setIsRefreshing(true);
+    try {
+      await onRefresh();
+    } finally {
+      setTimeout(() => setIsRefreshing(false), 600);
+    }
+  };
 
   return (
     <div style={{ maxWidth: '640px', margin: '0 auto' }} className="modern-card">
-      {/* Network status banner */}
+      {/* Network status & sync banner */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', paddingBottom: '12px', borderBottom: '1px solid rgba(255, 255, 255, 0.08)' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           {isOnline ? (
             <span style={{ color: '#10b981', display: 'flex', alignItems: 'center', gap: '5px', fontSize: '12px', fontWeight: '500' }}>
-              <Wifi size={14} /> Site Network Connected
+              <Wifi size={14} /> Site Connected
             </span>
           ) : (
             <span style={{ color: '#f59e0b', display: 'flex', alignItems: 'center', gap: '5px', fontSize: '12px', fontWeight: '500' }}>
-              <WifiOff size={14} /> Offline Buffer Active
+              <WifiOff size={14} /> Offline Buffer
             </span>
+          )}
+
+          {onRefresh && (
+            <button
+              type="button"
+              onClick={handleManualRefresh}
+              className="btn btn-outline btn-xs"
+              style={{ padding: '3px 8px', fontSize: '11px', gap: '4px' }}
+              title="Refresh and sync data from HQ"
+            >
+              <RefreshCw size={11} className={isRefreshing ? 'spinning' : ''} />
+              <span>{isRefreshing ? 'Syncing...' : 'Sync HQ'}</span>
+            </button>
           )}
         </div>
         <span className="modern-badge modern-badge-blue">
@@ -618,13 +649,13 @@ export default function MobileCapturePWA({
             </div>
 
             {/* Itemized Materials Table */}
-            {activePoObject?.items && activePoObject.items.length > 0 && (
+            {activePoItems && activePoItems.length > 0 && (
               <div style={{ borderTop: '1px solid rgba(255, 255, 255, 0.08)', paddingTop: '8px' }}>
                 <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.04em', fontWeight: '600' }}>
                   Permitted Material Deliveries Under This Contract:
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                  {activePoObject.items.map((it, idx) => (
+                  {activePoItems.map((it, idx) => (
                     <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', background: 'rgba(0,0,0,0.3)', padding: '5px 8px', borderRadius: '4px' }}>
                       <span style={{ color: '#fafafa' }}>
                         <strong>{it.description}</strong> <span style={{ color: 'var(--text-muted)', fontSize: '11px' }}>({it.item_code})</span>

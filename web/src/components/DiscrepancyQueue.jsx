@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { AlertTriangle, FileText, CheckSquare, X, Copy, Check } from 'lucide-react';
+import { generateFormalDisputeNotice } from './MatchMatrix';
 
 export default function DiscrepancyQueue({
   reconciliations = [],
@@ -23,17 +24,17 @@ export default function DiscrepancyQueue({
           </div>
           <div>
             <h2 style={{ fontSize: '18px', fontWeight: '600', color: 'var(--text-primary)', margin: 0 }}>
-              Flagged Discrepancies
+              Discrepancy Resolution Queue
             </h2>
             <p style={{ fontSize: '13px', color: 'var(--text-muted)', margin: 0 }}>
-              Quantity &amp; Pricing Variances &bull; Payments Automatically Halted
+              Flagged Invoices &bull; Quantity/Price Variances Blocked &bull; Audit Trail
             </p>
           </div>
         </div>
 
-        <div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           <span className="modern-badge modern-badge-rose">
-            {discrepancyList.length} Active {discrepancyList.length === 1 ? 'Variance' : 'Variances'}
+            {discrepancyList.length} {discrepancyList.length === 1 ? 'Action Required' : 'Actions Required'}
           </span>
         </div>
       </div>
@@ -44,11 +45,14 @@ export default function DiscrepancyQueue({
 
       {discrepancyList.length === 0 ? (
         <div style={{ background: '#141418', borderRadius: '8px', padding: '32px', textAlign: 'center', border: '1px solid rgba(255, 255, 255, 0.08)', color: 'var(--text-muted)' }}>
+          <div style={{ width: '40px', height: '40px', borderRadius: '8px', background: 'rgba(16, 185, 129, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 10px' }}>
+            <CheckSquare size={20} color="#10b981" />
+          </div>
           <div style={{ fontSize: '14px', fontWeight: '500', color: 'var(--text-primary)', marginBottom: '4px' }}>
-            Zero Discrepancies
+            Zero Pending Discrepancies
           </div>
           <p style={{ fontSize: '13px', color: 'var(--text-muted)', margin: 0 }}>
-            All active invoices reconcile cleanly against verified delivery slips.
+            All active invoices match Delivery Orders and Purchase Orders within configured Malaysian construction tolerances.
           </p>
         </div>
       ) : (
@@ -57,33 +61,31 @@ export default function DiscrepancyQueue({
             <thead>
               <tr>
                 <th>PO Reference</th>
+                <th>Project Site</th>
                 <th>Supplier</th>
                 <th>Invoice #</th>
-                <th style={{ textAlign: 'right' }}>Billed Amount</th>
-                <th style={{ textAlign: 'right' }}>Overpayment Blocked</th>
-                <th>Mismatch Type</th>
-                <th style={{ textAlign: 'center' }}>Actions</th>
+                <th style={{ textAlign: 'right' }}>Blocked Overpayment</th>
+                <th>Discrepancy Details</th>
+                <th style={{ textAlign: 'center' }}>Resolution Action</th>
               </tr>
             </thead>
             <tbody>
               {discrepancyList.map((rec) => {
-                const primaryIssue = rec.items?.find(it => it.discrepancy_type && it.discrepancy_type !== 'NONE');
+                const overpayment = rec.total_overpayment_blocked || 0;
                 return (
                   <tr key={rec.reconciliation_id}>
                     <td style={{ fontFamily: 'var(--font-mono)', fontWeight: '600', color: '#fafafa' }}>
                       {rec.po_number}
                     </td>
+                    <td style={{ color: 'var(--text-secondary)' }}>{rec.project_name}</td>
                     <td style={{ color: '#fafafa', fontWeight: '500' }}>{rec.supplier_name}</td>
                     <td style={{ fontFamily: 'var(--font-mono)', color: 'var(--text-secondary)' }}>#{rec.invoice_number}</td>
-                    <td style={{ textAlign: 'right', fontFamily: 'var(--font-mono)', color: '#fafafa' }}>
-                      ${(rec.invoice_amount || rec.total_billed_amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                    <td style={{ textAlign: 'right', fontFamily: 'var(--font-mono)', fontWeight: '700', color: '#ef4444', fontSize: '14px' }}>
+                      ${overpayment.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                     </td>
-                    <td style={{ textAlign: 'right', fontFamily: 'var(--font-mono)', fontWeight: '700', color: '#ef4444' }}>
-                      ${Number(rec.total_overpayment_blocked || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                    </td>
-                    <td>
+                    <td style={{ fontSize: '13px' }}>
                       <span className="modern-badge modern-badge-rose">
-                        {primaryIssue?.discrepancy_type || 'QUANTITY_VARIANCE'}
+                        Variance Blocked
                       </span>
                     </td>
                     <td style={{ textAlign: 'center' }}>
@@ -92,9 +94,11 @@ export default function DiscrepancyQueue({
                           type="button"
                           className="btn-modern btn-modern-secondary btn-sm"
                           onClick={() => {
-                            setActiveDisputeNotice(rec.dispute_notice);
+                            const notice = rec.dispute_notice || generateFormalDisputeNotice(rec);
+                            setActiveDisputeNotice(notice);
                             setCopied(false);
                           }}
+                          title="View and copy formal vendor payment dispute notice"
                         >
                           <FileText size={12} /> Dispute Notice
                         </button>

@@ -378,12 +378,38 @@ function handleLocalFallback(endpoint, options = {}) {
     const recs = getStored(STORAGE_KEYS.RECONCILIATIONS, []);
     const updated = recs.map(r => {
       if (r.reconciliation_id === body.reconciliation_id) {
-        return { ...r, match_status: 'DISPUTED' };
+        return { ...r, match_status: 'DISPUTED', dispute_reason: body.reason || r.dispute_notice };
       }
       return r;
     });
     setStored(STORAGE_KEYS.RECONCILIATIONS, updated);
     return { status: 'success' };
+  }
+
+  if (endpoint.startsWith('/reconciliations/dispatch-dispute') && method === 'POST') {
+    const recs = getStored(STORAGE_KEYS.RECONCILIATIONS, []);
+    const updated = recs.map(r => {
+      if (r.reconciliation_id === body.reconciliation_id) {
+        return { ...r, match_status: 'DISPUTED', dispute_dispatched_to: body.recipient_email };
+      }
+      return r;
+    });
+    setStored(STORAGE_KEYS.RECONCILIATIONS, updated);
+
+    // Add audit log
+    const logs = getStored(STORAGE_KEYS.AUDIT_LOGS, []);
+    const targetRec = recs.find(r => r.reconciliation_id === body.reconciliation_id);
+    const newLog = {
+      log_id: `log-${Date.now()}`,
+      action: 'DISPUTE_DISPATCHED',
+      actor_id: options.headers?.['X-Actor-Id'] || 'FINANCE_CONTROLLER_BOB',
+      actor_role: options.headers?.['X-Actor-Role'] || 'FINANCE_CONTROLLER',
+      details: `Dispatched statutory dispute notice for ${targetRec?.po_number || 'Contract'} to ${body.recipient_email || 'Vendor'}`,
+      timestamp: new Date().toISOString()
+    };
+    setStored(STORAGE_KEYS.AUDIT_LOGS, [newLog, ...logs]);
+
+    return { status: 'success', message: 'Dispute notice dispatched.' };
   }
 
   // 8e. Mobile DO Ingestion / Verification
