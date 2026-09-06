@@ -1426,6 +1426,18 @@ html, body {
     padding: 12px !important;
     max-width: 100% !important;
   }
+
+  .modern-card-footer, .card-footer {
+    flex-wrap: wrap !important;
+    gap: 8px !important;
+    padding: 14px 16px !important;
+  }
+
+  .modern-table-wrapper {
+    width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
 }
 
 /* ----------------------------------------------------------
@@ -1471,14 +1483,14 @@ html, body {
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(0, 0, 0, 0.82);
+  background: rgba(0, 0, 0, 0.85);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
   z-index: 1200;
   display: flex;
   justify-content: center;
   align-items: center;
-  padding: 20px;
+  padding: 16px;
   animation: fadeIn 0.2s ease-out;
 }
 
@@ -1491,7 +1503,7 @@ html, body {
   max-height: 94vh;
   display: flex;
   flex-direction: column;
-  box-shadow: 0 25px 60px -12px rgba(0, 0, 0, 0.7);
+  box-shadow: 0 25px 60px -12px rgba(0, 0, 0, 0.8);
   overflow: hidden;
 }
 
@@ -1499,11 +1511,11 @@ html, body {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 14px 20px;
+  padding: 12px 18px;
   background: #141418;
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
   flex-wrap: wrap;
-  gap: 12px;
+  gap: 10px;
 }
 
 .doc-template-tabs {
@@ -1513,6 +1525,9 @@ html, body {
   border-radius: var(--radius-md);
   padding: 3px;
   gap: 4px;
+  overflow-x: auto;
+  max-width: 100%;
+  -webkit-overflow-scrolling: touch;
 }
 
 .doc-tab-btn {
@@ -1526,6 +1541,7 @@ html, body {
   cursor: pointer;
   transition: all 0.15s ease;
   white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .doc-tab-btn:hover {
@@ -1541,11 +1557,14 @@ html, body {
 }
 
 .doc-modal-body {
-  padding: 24px;
+  padding: 20px;
   overflow-y: auto;
+  overflow-x: auto;
   background: #09090b;
   display: flex;
   justify-content: center;
+  align-items: flex-start;
+  -webkit-overflow-scrolling: touch;
 }
 
 /* Formal A4 Paper Sheet (White Paper Preview & Print) */
@@ -1561,6 +1580,7 @@ html, body {
   box-sizing: border-box;
   font-family: var(--font-sans);
   position: relative;
+  overflow: hidden;
 }
 
 .doc-content-layout {
@@ -1841,6 +1861,191 @@ html, body {
   padding: 6px 14px;
   text-align: center;
   background: #f8fafc;
+}
+
+/* Document Modal Responsive Adjustments */
+@media (max-width: 900px) {
+  .doc-modal-overlay {
+    padding: 8px 4px;
+    align-items: flex-start;
+  }
+
+  .doc-modal-dialog {
+    max-height: 96vh;
+    border-radius: var(--radius-lg);
+    width: 100%;
+    margin: 0 auto;
+  }
+
+  .doc-modal-toolbar {
+    padding: 10px 12px;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+  }
+
+  .doc-modal-toolbar > div:first-child {
+    width: 100%;
+  }
+
+  .doc-template-tabs {
+    width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    padding: 4px;
+    display: flex;
+    flex-wrap: nowrap;
+    gap: 4px;
+  }
+
+  .doc-modal-toolbar > div:last-child {
+    width: 100%;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    justify-content: space-between;
+  }
+
+  .doc-modal-toolbar > div:last-child button {
+    flex: 1 1 auto;
+    min-width: 80px;
+    font-size: 11px;
+    padding: 6px 8px;
+    justify-content: center;
+  }
+
+  .doc-modal-toolbar > div:last-child button:last-child {
+    flex: 0 0 34px;
+    min-width: 34px;
+    padding: 6px;
+  }
+
+  .doc-modal-body {
+    padding: 10px 6px;
+    display: block;
+    width: 100%;
+    box-sizing: border-box;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .doc-paper-sheet {
+    padding: 18px 12px;
+    min-height: auto;
+    border-radius: 4px;
+    width: 100% !important;
+    max-width: 100% !important;
+    box-sizing: border-box !important;
+    overflow: hidden !important;
+    margin: 0 auto;
+  }
+
+  .doc-header-row {
+    flex-direction: column;
+    gap: 14px;
+  }
+
+  .doc-id-box {
+    text-align: left;
+    min-width: 0;
+  }
+
+  .doc-parties-grid {
+    grid-template-columns: 1fr !important;
+    gap: 12px !important;
+  }
+
+  .doc-triangulation-grid {
+    grid-template-columns: 1fr !important;
+    gap: 12px !important;
+  }
+
+  .doc-bottom-section {
+    flex-direction: column !important;
+    gap: 16px !important;
+  }
+
+  .doc-signature-row {
+    flex-direction: column !important;
+    gap: 20px !important;
+  }
+
+  .doc-site-metrics-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 8px !important;
+  }
+
+  .doc-weighbridge-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 10px !important;
+  }
+
+  .doc-table-wrapper {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    width: 100%;
+    margin-bottom: 16px;
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 4px;
+  }
+
+  .doc-table {
+    min-width: 520px;
+    background: #ffffff;
+  }
+
+  .doc-table td {
+    background: #ffffff;
+  }
+
+  .doc-table tbody tr:nth-child(even) td {
+    background: #f8fafc;
+  }
+
+  .doc-total-row td {
+    background: #f1f5f9 !important;
+  }
+}
+
+@media (max-width: 520px) {
+  .doc-modal-overlay {
+    padding: 4px 2px;
+  }
+
+  .doc-modal-dialog {
+    max-height: 98vh;
+    border-radius: 8px;
+  }
+
+  .doc-paper-sheet {
+    padding: 14px 10px;
+    width: 100% !important;
+    max-width: 100% !important;
+    box-sizing: border-box !important;
+    overflow: hidden !important;
+  }
+
+  .doc-company-title {
+    font-size: 14px;
+  }
+
+  .doc-main-number {
+    font-size: 14px;
+  }
+
+  .doc-table th, .doc-table td {
+    padding: 6px 8px;
+    font-size: 10px;
+  }
+
+  .doc-site-metrics-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  .doc-weighbridge-grid {
+    grid-template-columns: 1fr !important;
+  }
 }
 
 /* ==========================================================

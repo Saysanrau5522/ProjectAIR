@@ -410,39 +410,41 @@ export default function DocumentExportModal({
 
                 {/* Contract Context */}
                 <div className="doc-section-label">PERMITTED INTAKE SCHEDULE &amp; AUTHORIZED MATERIALS</div>
-                <table className="doc-table" style={{ marginBottom: '24px' }}>
-                  <thead>
-                    <tr>
-                      <th style={{ width: '120px' }}>PO Reference</th>
-                      <th>Authorized Supplier</th>
-                      <th>Permitted Materials</th>
-                      <th style={{ width: '120px', textAlign: 'right' }}>Max Limit</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr>
-                      <td className="doc-mono">{activePo?.po_number || 'PO-2026-ALL'}</td>
-                      <td><strong>{activePo?.supplier_name || 'Authorized Suppliers'}</strong></td>
-                      <td>Direct Construction Materials &bull; Pre-Mixed Concrete / Rebar / Ballast</td>
-                      <td style={{ textAlign: 'right' }} className="doc-mono doc-bold">
-                        RM {(activePo?.total_amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
+                <div className="doc-table-wrapper">
+                  <table className="doc-table" style={{ marginBottom: '24px' }}>
+                    <thead>
+                      <tr>
+                        <th style={{ width: '120px' }}>PO Reference</th>
+                        <th>Authorized Supplier</th>
+                        <th>Permitted Materials</th>
+                        <th style={{ width: '120px', textAlign: 'right' }}>Max Limit</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr>
+                        <td className="doc-mono">{activePo?.po_number || 'PO-2026-ALL'}</td>
+                        <td><strong>{activePo?.supplier_name || 'Authorized Suppliers'}</strong></td>
+                        <td>Direct Construction Materials &bull; Pre-Mixed Concrete / Rebar / Ballast</td>
+                        <td style={{ textAlign: 'right' }} className="doc-mono doc-bold">
+                          RM {(activePo?.total_amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
 
                 {/* Gate Security Log Box */}
                 <div style={{ border: '1px dashed #94a3b8', padding: '16px', borderRadius: '6px', marginTop: '16px' }}>
                   <div style={{ fontSize: '11px', fontWeight: '700', color: '#475569', textTransform: 'uppercase', marginBottom: '12px' }}>
                     TO BE FILLED BY SITE WEIGHBRIDGE OPERATOR (MANUAL BACKUP)
                   </div>
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '12px', fontSize: '12px' }}>
+                  <div className="doc-weighbridge-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '12px', fontSize: '12px' }}>
                     <div>Lorry Plate No: __________________</div>
                     <div>Gross Wt (kg): __________________</div>
                     <div>Tare Wt (kg): __________________</div>
                     <div>Net Intake (kg): __________________</div>
                   </div>
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '12px', fontSize: '12px', marginTop: '16px' }}>
+                  <div className="doc-weighbridge-subgrid" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '12px', fontSize: '12px', marginTop: '16px' }}>
                     <div>DO Delivery Docket No: ________________________</div>
                     <div>Supervisor Signature: ________________________</div>
                   </div>
@@ -471,7 +473,7 @@ export default function DocumentExportModal({
                 <div className="doc-divider" />
 
                 {/* Triangulation Header */}
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px', marginBottom: '20px' }}>
+                <div className="doc-triangulation-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px', marginBottom: '20px' }}>
                   <div className="doc-party-card">
                     <div className="doc-section-label">1. PURCHASE ORDER (PO)</div>
                     <div className="doc-party-name">{reconciliation?.po_number || activePo?.po_number}</div>
@@ -496,66 +498,68 @@ export default function DocumentExportModal({
 
                 {/* Audit Line Comparison */}
                 <div className="doc-section-label">LINE-ITEM RECONCILIATION &amp; OVERPAYMENT PREVENTION BREAKDOWN</div>
-                <table className="doc-table" style={{ marginBottom: '20px' }}>
-                  <thead>
-                    <tr>
-                      <th>Item &amp; Description</th>
-                      <th style={{ textAlign: 'right' }}>PO Rate</th>
-                      <th style={{ textAlign: 'right' }}>PO Auth Qty</th>
-                      <th style={{ textAlign: 'right' }}>DO Received</th>
-                      <th style={{ textAlign: 'right' }}>Inv Billed</th>
-                      <th style={{ textAlign: 'right' }}>Variance</th>
-                      <th style={{ textAlign: 'right' }}>Payable (RM)</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {(reconciliation?.items && reconciliation.items.length > 0) ? (
-                      reconciliation.items.map((it, idx) => {
-                        const variance = (it.cumulative_billed_qty || 0) - (it.cumulative_delivered_qty || 0);
-                        const rate = it.po_unit_price || 0;
-                        const payable = (it.verified_payable_amount !== undefined) ? it.verified_payable_amount : Math.min(it.cumulative_delivered_qty || 0, it.cumulative_billed_qty || 0) * rate;
-                        return (
-                          <tr key={idx}>
-                            <td>
-                              <strong>{it.description || it.item_code}</strong>
-                              <div style={{ fontSize: '10px', color: '#64748b' }}>{it.item_code}</div>
-                            </td>
-                            <td style={{ textAlign: 'right' }} className="doc-mono">RM {rate.toFixed(2)}</td>
-                            <td style={{ textAlign: 'right' }} className="doc-mono">{it.po_quantity || 0}</td>
-                            <td style={{ textAlign: 'right' }} className="doc-mono" style={{ color: '#059669', fontWeight: '600' }}>{it.cumulative_delivered_qty || 0}</td>
-                            <td style={{ textAlign: 'right' }} className="doc-mono">{it.cumulative_billed_qty || 0}</td>
-                            <td style={{ textAlign: 'right' }} className="doc-mono" style={{ color: variance > 0 ? '#dc2626' : '#64748b', fontWeight: variance > 0 ? '700' : 'normal' }}>
-                              {variance > 0 ? `+${variance} (Over)` : variance < 0 ? `${variance}` : '0.00'}
-                            </td>
-                            <td style={{ textAlign: 'right' }} className="doc-mono doc-bold">
-                              RM {payable.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                            </td>
-                          </tr>
-                        );
-                      })
-                    ) : (
+                <div className="doc-table-wrapper">
+                  <table className="doc-table" style={{ marginBottom: '20px' }}>
+                    <thead>
                       <tr>
-                        <td colSpan={7} style={{ textAlign: 'center', padding: '16px', color: '#64748b' }}>
-                          Standard 3-Way Triangulation in Equilibrium (Zero Discrepancies)
+                        <th>Item &amp; Description</th>
+                        <th style={{ textAlign: 'right' }}>PO Rate</th>
+                        <th style={{ textAlign: 'right' }}>PO Auth Qty</th>
+                        <th style={{ textAlign: 'right' }}>DO Received</th>
+                        <th style={{ textAlign: 'right' }}>Inv Billed</th>
+                        <th style={{ textAlign: 'right' }}>Variance</th>
+                        <th style={{ textAlign: 'right' }}>Payable (RM)</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(reconciliation?.items && reconciliation.items.length > 0) ? (
+                        reconciliation.items.map((it, idx) => {
+                          const variance = (it.cumulative_billed_qty || 0) - (it.cumulative_delivered_qty || 0);
+                          const rate = it.po_unit_price || 0;
+                          const payable = (it.verified_payable_amount !== undefined) ? it.verified_payable_amount : Math.min(it.cumulative_delivered_qty || 0, it.cumulative_billed_qty || 0) * rate;
+                          return (
+                            <tr key={idx}>
+                              <td>
+                                <strong>{it.description || it.item_code}</strong>
+                                <div style={{ fontSize: '10px', color: '#64748b' }}>{it.item_code}</div>
+                              </td>
+                              <td style={{ textAlign: 'right' }} className="doc-mono">RM {rate.toFixed(2)}</td>
+                              <td style={{ textAlign: 'right' }} className="doc-mono">{it.po_quantity || 0}</td>
+                              <td style={{ textAlign: 'right' }} className="doc-mono" style={{ color: '#059669', fontWeight: '600' }}>{it.cumulative_delivered_qty || 0}</td>
+                              <td style={{ textAlign: 'right' }} className="doc-mono">{it.cumulative_billed_qty || 0}</td>
+                              <td style={{ textAlign: 'right' }} className="doc-mono" style={{ color: variance > 0 ? '#dc2626' : '#64748b', fontWeight: variance > 0 ? '700' : 'normal' }}>
+                                {variance > 0 ? `+${variance} (Over)` : variance < 0 ? `${variance}` : '0.00'}
+                              </td>
+                              <td style={{ textAlign: 'right' }} className="doc-mono doc-bold">
+                                RM {payable.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                              </td>
+                            </tr>
+                          );
+                        })
+                      ) : (
+                        <tr>
+                          <td colSpan={7} style={{ textAlign: 'center', padding: '16px', color: '#64748b' }}>
+                            Standard 3-Way Triangulation in Equilibrium (Zero Discrepancies)
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                    <tfoot>
+                      <tr style={{ background: '#f8fafc' }}>
+                        <td colSpan={5} style={{ textAlign: 'right', fontWeight: '700' }}>TOTAL OVERPAYMENT BLOCKED / WITHHELD:</td>
+                        <td colSpan={2} style={{ textAlign: 'right', color: '#dc2626' }} className="doc-mono doc-bold">
+                          RM {(reconciliation?.total_overpayment_blocked || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                         </td>
                       </tr>
-                    )}
-                  </tbody>
-                  <tfoot>
-                    <tr style={{ background: '#f8fafc' }}>
-                      <td colSpan={5} style={{ textAlign: 'right', fontWeight: '700' }}>TOTAL OVERPAYMENT BLOCKED / WITHHELD:</td>
-                      <td colSpan={2} style={{ textAlign: 'right', color: '#dc2626' }} className="doc-mono doc-bold">
-                        RM {(reconciliation?.total_overpayment_blocked || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                      </td>
-                    </tr>
-                    <tr className="doc-total-row">
-                      <td colSpan={5} style={{ textAlign: 'right', fontSize: '14px' }}>VERIFIED AMOUNT APPROVED FOR DISBURSEMENT:</td>
-                      <td colSpan={2} style={{ textAlign: 'right', fontSize: '16px', color: '#059669' }} className="doc-mono doc-bold">
-                        RM {((reconciliation?.po_total_amount || activePo?.total_amount || 0) - (reconciliation?.total_overpayment_blocked || 0)).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                      </td>
-                    </tr>
-                  </tfoot>
-                </table>
+                      <tr className="doc-total-row">
+                        <td colSpan={5} style={{ textAlign: 'right', fontSize: '14px' }}>VERIFIED AMOUNT APPROVED FOR DISBURSEMENT:</td>
+                        <td colSpan={2} style={{ textAlign: 'right', fontSize: '16px', color: '#059669' }} className="doc-mono doc-bold">
+                          RM {((reconciliation?.po_total_amount || activePo?.total_amount || 0) - (reconciliation?.total_overpayment_blocked || 0)).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
 
                 {/* Accounting GL Coding Box */}
                 <div style={{ background: '#f1f5f9', border: '1px solid #cbd5e1', borderRadius: '6px', padding: '12px 16px', marginBottom: '20px' }}>
@@ -606,7 +610,7 @@ export default function DocumentExportModal({
                 <div className="doc-divider" />
 
                 {/* Site Metrics Hero */}
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px', margin: '16px 0' }}>
+                <div className="doc-site-metrics-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px', margin: '16px 0' }}>
                   <div className="doc-party-card">
                     <div className="doc-section-label">PROJECT SITE DETAILS</div>
                     <div className="doc-party-name">{activeSite.project_name}</div>
@@ -637,25 +641,41 @@ export default function DocumentExportModal({
 
                 {/* Active Contracts at this Site */}
                 <div className="doc-section-label">COMMITTED SUPPLIER CONTRACTS ALLOCATED TO THIS SITE</div>
-                <table className="doc-table" style={{ marginBottom: '24px' }}>
-                  <thead>
-                    <tr>
-                      <th style={{ width: '130px' }}>PO Number</th>
-                      <th>Supplier Name</th>
-                      <th>Issue Date</th>
-                      <th style={{ textAlign: 'right' }}>Total Value (RM)</th>
-                      <th style={{ width: '120px', textAlign: 'center' }}>Audit Status</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {(allPos.filter(p => p.project_site_id === activeSite.site_id).length > 0 ? (
-                      allPos.filter(p => p.project_site_id === activeSite.site_id).map((p, idx) => (
-                        <tr key={idx}>
-                          <td className="doc-mono"><strong>{p.po_number}</strong></td>
-                          <td>{p.supplier_name}</td>
-                          <td>{p.issue_date || '2026-03-01'}</td>
+                <div className="doc-table-wrapper">
+                  <table className="doc-table" style={{ marginBottom: '24px' }}>
+                    <thead>
+                      <tr>
+                        <th style={{ width: '130px' }}>PO Number</th>
+                        <th>Supplier Name</th>
+                        <th>Issue Date</th>
+                        <th style={{ textAlign: 'right' }}>Total Value (RM)</th>
+                        <th style={{ width: '120px', textAlign: 'center' }}>Audit Status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(allPos.filter(p => p.project_site_id === activeSite.site_id).length > 0 ? (
+                        allPos.filter(p => p.project_site_id === activeSite.site_id).map((p, idx) => (
+                          <tr key={idx}>
+                            <td className="doc-mono"><strong>{p.po_number}</strong></td>
+                            <td>{p.supplier_name}</td>
+                            <td>{p.issue_date || '2026-03-01'}</td>
+                            <td style={{ textAlign: 'right' }} className="doc-mono doc-bold">
+                              RM {(p.total_amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                            </td>
+                            <td style={{ textAlign: 'center' }}>
+                              <span style={{ display: 'inline-block', padding: '2px 8px', borderRadius: '12px', fontSize: '11px', fontWeight: '600', background: '#dcfce7', color: '#15803d' }}>
+                                VERIFIED
+                              </span>
+                            </td>
+                          </tr>
+                        ))
+                      ) : (
+                        <tr>
+                          <td className="doc-mono"><strong>{activePo?.po_number || 'PO-2026-01'}</strong></td>
+                          <td>{activePo?.supplier_name || 'Authorized Supplier'}</td>
+                          <td>{activePo?.issue_date || new Date().toISOString().split('T')[0]}</td>
                           <td style={{ textAlign: 'right' }} className="doc-mono doc-bold">
-                            RM {(p.total_amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                            RM {(activePo?.total_amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
                           </td>
                           <td style={{ textAlign: 'center' }}>
                             <span style={{ display: 'inline-block', padding: '2px 8px', borderRadius: '12px', fontSize: '11px', fontWeight: '600', background: '#dcfce7', color: '#15803d' }}>
@@ -663,24 +683,10 @@ export default function DocumentExportModal({
                             </span>
                           </td>
                         </tr>
-                      ))
-                    ) : (
-                      <tr>
-                        <td className="doc-mono"><strong>{activePo?.po_number || 'PO-2026-01'}</strong></td>
-                        <td>{activePo?.supplier_name || 'Authorized Supplier'}</td>
-                        <td>{activePo?.issue_date || new Date().toISOString().split('T')[0]}</td>
-                        <td style={{ textAlign: 'right' }} className="doc-mono doc-bold">
-                          RM {(activePo?.total_amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                        </td>
-                        <td style={{ textAlign: 'center' }}>
-                          <span style={{ display: 'inline-block', padding: '2px 8px', borderRadius: '12px', fontSize: '11px', fontWeight: '600', background: '#dcfce7', color: '#15803d' }}>
-                            VERIFIED
-                          </span>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
 
                 {/* Site QS Sign-Off */}
                 <div className="doc-signature-row">

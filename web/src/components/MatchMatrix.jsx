@@ -266,7 +266,7 @@ export default function MatchMatrix({
                     </td>
 
                     <td className="tabular-nums" style={{ textAlign: 'right' }}>
-                      ${Number(item.po_unit_price).toFixed(2)}
+                      RM {Number(item.po_unit_price).toFixed(2)}
                     </td>
 
                     <td className="tabular-nums" style={{ textAlign: 'right', color: isDiscrepant ? 'var(--accent-amber)' : 'var(--accent-emerald)', fontWeight: '600' }}>
@@ -278,7 +278,7 @@ export default function MatchMatrix({
                     </td>
 
                     <td className="tabular-nums" style={{ textAlign: 'right' }}>
-                      ${Number(item.billed_unit_price).toFixed(2)}
+                      RM {Number(item.billed_unit_price).toFixed(2)}
                     </td>
 
                     <td className="tabular-nums" style={{ textAlign: 'right', color: item.variance_qty > 0 ? 'var(--accent-amber)' : 'var(--text-muted)' }}>
@@ -286,7 +286,7 @@ export default function MatchMatrix({
                     </td>
 
                     <td className="tabular-nums" style={{ textAlign: 'right', fontWeight: '600', color: item.overpayment_amount > 0 ? 'var(--accent-amber)' : 'var(--text-muted)' }}>
-                      {item.overpayment_amount > 0 ? `$${Number(item.overpayment_amount).toFixed(2)}` : '$0.00'}
+                      {item.overpayment_amount > 0 ? `RM ${Number(item.overpayment_amount).toFixed(2)}` : 'RM 0.00'}
                     </td>
 
                     <td>
@@ -335,7 +335,7 @@ export default function MatchMatrix({
                   className="btn btn-emerald btn-sm"
                   onClick={() => setShortPayModalOpen(true)}
                 >
-                  <Split size={14} /> Approve Verified (${verifiedTotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}) &amp; Dispute Variance
+                  <Split size={14} /> Approve Verified (RM {verifiedTotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}) &amp; Dispute Variance
                 </button>
 
                 <button 
@@ -356,7 +356,7 @@ export default function MatchMatrix({
                 onClick={() => onApprove(activeRec.reconciliation_id)}
                 title="Approve invoice for immediate bank disbursement"
               >
-                <CheckCircle2 size={14} /> Approve Payout (${(activeRec.invoice_amount || activeRec.total_billed_amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })})
+                <CheckCircle2 size={14} /> Approve Payout (RM {(activeRec.invoice_amount || activeRec.total_billed_amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })})
               </button>
             )}
           </div>

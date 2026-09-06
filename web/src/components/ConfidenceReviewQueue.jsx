@@ -65,7 +65,7 @@ export default function ConfidenceReviewQueue({
           </p>
         </div>
       ) : (
-        <div style={{ border: '1px solid rgba(255, 255, 255, 0.08)', borderRadius: '8px', overflow: 'hidden' }}>
+        <div className="modern-table-wrapper" style={{ border: '1px solid rgba(255, 255, 255, 0.08)', borderRadius: '8px' }}>
           <table className="modern-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
               <tr>
@@ -134,7 +134,7 @@ export default function ConfidenceReviewQueue({
               </button>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '20px', marginBottom: '22px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 280px), 1fr))', gap: '20px', marginBottom: '22px' }}>
               {/* Original Document Photo */}
               <div style={{ background: '#09090b', border: '1px solid rgba(255, 255, 255, 0.08)', borderRadius: '10px', padding: '14px' }}>
                 <div style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '6px' }}>

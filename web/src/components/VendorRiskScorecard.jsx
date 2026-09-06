@@ -110,7 +110,7 @@ export default function VendorRiskScorecard() {
             <span className="trend-badge trend-up">Savings</span>
           </div>
           <div className="kpi-value" style={{ color: 'var(--accent-emerald)' }}>
-            ${totalBlocked.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+            RM {totalBlocked.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
           </div>
           <div className="kpi-footer">Intercepted unsubstantiated claims</div>
         </div>
@@ -145,7 +145,7 @@ export default function VendorRiskScorecard() {
           </p>
         </div>
       ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(460px, 1fr))', gap: '16px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 340px), 1fr))', gap: '16px' }}>
           {filtered.map(vendor => {
           const isGradeA = vendor.risk_grade === 'A';
           const isGradeC = vendor.risk_grade === 'C';
@@ -162,7 +162,7 @@ export default function VendorRiskScorecard() {
                     {vendor.supplier_name}
                   </h3>
                   <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '2px' }}>
-                    Total Procurement: <span className="tabular-nums" style={{ color: '#FFF', fontWeight: '600' }}>${(vendor.total_spend || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                    Total Procurement: <span className="tabular-nums" style={{ color: '#FFF', fontWeight: '600' }}>RM {(vendor.total_spend || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
                   </div>
                 </div>
 
@@ -187,7 +187,7 @@ export default function VendorRiskScorecard() {
 
               <div style={{ padding: '16px 20px', flex: 1, display: 'flex', flexDirection: 'column' }}>
                 {/* Metric Strip */}
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px', marginBottom: '16px' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(90px, 1fr))', gap: '8px', marginBottom: '16px' }}>
                   <div style={{ background: 'var(--bg-surface-elevated)', padding: '10px 12px', borderRadius: 'var(--radius-md)' }}>
                     <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Discrepancy Rate</div>
                     <div className="tabular-nums" style={{ fontSize: '15px', fontWeight: '700', color: isGradeA ? 'var(--accent-emerald)' : 'var(--accent-amber)', marginTop: '2px' }}>

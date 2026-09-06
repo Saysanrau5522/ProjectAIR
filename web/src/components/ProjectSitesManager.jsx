@@ -52,7 +52,7 @@ export default function ProjectSitesManager({
           </button>
         </div>
       ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))', gap: '18px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 300px), 1fr))', gap: '18px' }}>
           {sites.map(site => {
           const sitePos = pos.filter(p => p.project_site_id === site.site_id);
           const totalSpend = sitePos.reduce((sum, p) => sum + (p.total_amount || 0), 0);
@@ -73,7 +73,7 @@ export default function ProjectSitesManager({
 
                   <div style={{ textAlign: 'right' }}>
                     <div style={{ fontFamily: 'var(--font-mono)', fontSize: '15px', fontWeight: '700', color: '#10b981' }}>
-                      ${totalSpend.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                      RM {totalSpend.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                     </div>
                     <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Authorized Spend</div>
                   </div>
@@ -105,7 +105,7 @@ export default function ProjectSitesManager({
                           </div>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                             <span style={{ fontFamily: 'var(--font-mono)', fontSize: '12px', color: 'var(--text-secondary)' }}>
-                              ${po.total_amount?.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                              RM {po.total_amount?.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                             </span>
                             {onOpenDocModal && (
                               <button

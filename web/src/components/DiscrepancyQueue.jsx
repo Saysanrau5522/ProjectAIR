@@ -56,7 +56,7 @@ export default function DiscrepancyQueue({
           </p>
         </div>
       ) : (
-        <div style={{ border: '1px solid rgba(255, 255, 255, 0.08)', borderRadius: '8px', overflow: 'hidden' }}>
+        <div className="modern-table-wrapper" style={{ border: '1px solid rgba(255, 255, 255, 0.08)', borderRadius: '8px' }}>
           <table className="modern-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
               <tr>
@@ -81,7 +81,7 @@ export default function DiscrepancyQueue({
                     <td style={{ color: '#fafafa', fontWeight: '500' }}>{rec.supplier_name}</td>
                     <td style={{ fontFamily: 'var(--font-mono)', color: 'var(--text-secondary)' }}>#{rec.invoice_number}</td>
                     <td style={{ textAlign: 'right', fontFamily: 'var(--font-mono)', fontWeight: '700', color: '#ef4444', fontSize: '14px' }}>
-                      ${overpayment.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                      RM {overpayment.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                     </td>
                     <td style={{ fontSize: '13px' }}>
                       <span className="modern-badge modern-badge-rose">

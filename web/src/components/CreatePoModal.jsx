@@ -344,7 +344,7 @@ export default function CreatePoModal({
                 </button>
               </div>
 
-              <div style={{ border: '1px solid rgba(255, 255, 255, 0.08)', borderRadius: '8px', overflow: 'hidden' }}>
+              <div className="modern-table-wrapper" style={{ border: '1px solid rgba(255, 255, 255, 0.08)', borderRadius: '8px' }}>
                 <table className="modern-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
                   <thead>
                     <tr>
@@ -411,7 +411,7 @@ export default function CreatePoModal({
                             />
                           </td>
                           <td style={{ textAlign: 'right', fontFamily: 'var(--font-mono)', fontWeight: '600', color: '#10b981', fontSize: '13px' }}>
-                            ${lineTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            RM {lineTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                           </td>
                           <td style={{ textAlign: 'center' }}>
                             <button 
@@ -437,12 +437,12 @@ export default function CreatePoModal({
                 Total Contract Authorized Value:
               </span>
               <span style={{ fontSize: '20px', fontWeight: '700', color: '#10b981', fontFamily: 'var(--font-mono)' }}>
-                ${totalPoAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                RM {totalPoAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
               </span>
             </div>
 
             {/* Action buttons */}
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+            <div className="modal-actions" style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
               <button 
                 type="button" 
                 className="btn-modern btn-modern-secondary" 

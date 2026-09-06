@@ -486,7 +486,7 @@ export default function CreateInvoiceModal({
           </div>
 
           {/* Action Buttons */}
-          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+          <div className="modal-actions" style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
             <button 
               type="button" 
               className="btn btn-secondary" 

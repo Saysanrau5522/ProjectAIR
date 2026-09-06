@@ -51,7 +51,7 @@ export default function ApprovalQueue({
           </p>
         </div>
       ) : (
-        <div style={{ border: '1px solid rgba(255, 255, 255, 0.08)', borderRadius: '8px', overflow: 'hidden' }}>
+        <div className="modern-table-wrapper" style={{ border: '1px solid rgba(255, 255, 255, 0.08)', borderRadius: '8px' }}>
           <table className="modern-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
               <tr>
@@ -76,7 +76,7 @@ export default function ApprovalQueue({
                     <td style={{ color: '#fafafa', fontWeight: '500' }}>{rec.supplier_name}</td>
                     <td style={{ fontFamily: 'var(--font-mono)', color: 'var(--text-secondary)' }}>#{rec.invoice_number}</td>
                     <td style={{ textAlign: 'right', fontFamily: 'var(--font-mono)', fontWeight: '700', color: '#10b981', fontSize: '14px' }}>
-                      ${(rec.invoice_amount || rec.total_billed_amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                      RM {(rec.invoice_amount || rec.total_billed_amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
                     </td>
                     <td style={{ fontSize: '13px', color: rec.resolution_notes ? '#f59e0b' : 'var(--text-muted)' }}>
                       {rec.resolution_notes ? `Resolved by ${rec.resolved_by}: ${rec.resolution_notes}` : 'Automated 100% Match'}
@@ -108,7 +108,7 @@ export default function ApprovalQueue({
               Approved &amp; Locked Records Archive
             </h3>
           </div>
-          <div style={{ border: '1px solid rgba(255, 255, 255, 0.08)', borderRadius: '8px', overflow: 'hidden' }}>
+          <div className="modern-table-wrapper" style={{ border: '1px solid rgba(255, 255, 255, 0.08)', borderRadius: '8px' }}>
             <table className="modern-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>
                 <tr>
@@ -127,7 +127,7 @@ export default function ApprovalQueue({
                     <td style={{ color: 'var(--text-secondary)' }}>{rec.supplier_name}</td>
                     <td style={{ fontFamily: 'var(--font-mono)', color: 'var(--text-muted)' }}>#{rec.invoice_number}</td>
                     <td style={{ textAlign: 'right', fontFamily: 'var(--font-mono)', fontWeight: '600', color: '#10b981' }}>
-                      ${(rec.invoice_amount || rec.total_billed_amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                      RM {(rec.invoice_amount || rec.total_billed_amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
                     </td>
                     <td style={{ color: 'var(--text-secondary)', fontSize: '13px' }}>{rec.approved_by}</td>
                     <td>

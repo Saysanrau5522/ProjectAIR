@@ -169,7 +169,7 @@ export default function ExecutiveDashboard({
             </span>
           </div>
           <div className="kpi-value metric-card-value" style={{ fontSize: '26px', fontWeight: '700', color: '#fafafa', fontFamily: 'var(--font-mono)', marginBottom: '8px' }}>
-            ${totalPoValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            RM {totalPoValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
           </div>
           <div className="kpi-footer metric-card-footer" style={{ fontSize: '12px', color: 'var(--text-muted)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <span>vs previous fiscal period</span>
@@ -196,7 +196,7 @@ export default function ExecutiveDashboard({
             </span>
           </div>
           <div className="kpi-value metric-card-value" style={{ fontSize: '26px', fontWeight: '700', color: '#10b981', fontFamily: 'var(--font-mono)', marginBottom: '8px' }}>
-            ${blockedAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            RM {blockedAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
           </div>
           <div className="kpi-footer metric-card-footer" style={{ fontSize: '12px', color: 'var(--text-muted)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <span>Direct leakage prevented</span>
@@ -393,7 +393,7 @@ export default function ExecutiveDashboard({
               {/* Center Value */}
               <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
                 <span style={{ fontSize: '15px', fontWeight: '700', color: '#FFF', lineHeight: 1, fontFamily: 'var(--font-mono)' }}>
-                  ${(totalGlSpend / 1000).toFixed(1)}k
+                  RM {(totalGlSpend / 1000).toFixed(1)}k
                 </span>
                 <span style={{ fontSize: '10px', color: 'var(--text-muted)', marginTop: '2px' }}>Total Spend</span>
               </div>
@@ -410,7 +410,7 @@ export default function ExecutiveDashboard({
                       <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>{g.label}</span>
                     </div>
                     <span className="donut-legend-value" style={{ fontFamily: 'var(--font-mono)' }}>
-                      ${(g.amount / 1000).toFixed(1)}k ({pct}%)
+                      RM {(g.amount / 1000).toFixed(1)}k ({pct}%)
                     </span>
                   </div>
                 );
@@ -449,7 +449,7 @@ export default function ExecutiveDashboard({
             ) : (
               recentActivities.map((act, idx) => (
                 <div 
-                  key={act.id || idx}
+                  key={act.id} 
                   style={{
                     display: 'flex',
                     alignItems: 'center',
@@ -499,7 +499,7 @@ export default function ExecutiveDashboard({
                     )}
 
                     <div style={{ fontFamily: 'var(--font-mono)', fontSize: '13px', fontWeight: '600', color: '#FFF', minWidth: '80px', textAlign: 'right' }}>
-                      ${act.amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                      RM {act.amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                     </div>
                   </div>
                 </div>
@@ -560,7 +560,7 @@ export default function ExecutiveDashboard({
 
                   <div style={{ textAlign: 'right' }}>
                     <div style={{ fontFamily: 'var(--font-mono)', fontSize: '13px', fontWeight: '600', color: '#FFF' }}>
-                      ${mat.totalSpend.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      RM {mat.totalSpend.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </div>
                     <span className="status-pill pill-green" style={{ fontSize: '10px', padding: '1px 6px', marginTop: '2px' }}>
                       Active
