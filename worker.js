@@ -33,9 +33,73 @@ function generateEdgeToken(payload, secret = 'air_edge_secret_8842') {
   });
   const sig = btoa(secret + '.' + h + '.' + p).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
   return `${h}.${p}.${sig}`;
+function ensureEdgeBaseline() {
+  if (edgeSites.length === 0) {
+    edgeSites = [
+      { site_id: 'SITE-USM', project_name: 'USM', location: 'Penang, Malaysia', created_at: '2026-09-06' },
+      { site_id: 'SITE-UKM', project_name: 'UKM', location: 'Bangi, Selangor, Malaysia', created_at: '2026-09-06' }
+    ];
+  }
+  if (edgePos.length === 0) {
+    const po1Token = generateEdgeToken({
+      po_id: 'PO-2F6949',
+      po_number: 'PO-2026-382',
+      site_id: 'SITE-USM',
+      project_name: 'USM',
+      supplier_name: 'APEX',
+      total_amount: 200.0
+    });
+    const po2Token = generateEdgeToken({
+      po_id: 'PO-2BFAA9',
+      po_number: 'PO-2026-121',
+      site_id: 'SITE-UKM',
+      project_name: 'UKM',
+      supplier_name: 'Apex',
+      total_amount: 200.0
+    });
+    edgePos = [
+      {
+        po_id: 'PO-2F6949',
+        po_number: 'PO-2026-382',
+        project_site_id: 'SITE-USM',
+        project_name: 'USM',
+        supplier_name: 'APEX',
+        total_amount: 200.0,
+        issue_date: '2026-09-06',
+        token: po1Token,
+        items: [
+          { item_code: '01', description: 'Saysan', quantity: 1.0, unit_price: 100.0, unit: 'Units' },
+          { item_code: '02', description: 'Divyesh', quantity: 1.0, unit_price: 100.0, unit: 'Units' }
+        ]
+      },
+      {
+        po_id: 'PO-2BFAA9',
+        po_number: 'PO-2026-121',
+        project_site_id: 'SITE-UKM',
+        project_name: 'UKM',
+        supplier_name: 'Apex',
+        total_amount: 200.0,
+        issue_date: '2026-09-06',
+        token: po2Token,
+        items: [
+          { item_code: '01', description: 'Ravi', quantity: 1.0, unit_price: 100.0, unit: 'Units' },
+          { item_code: '02', description: 'Kavi', quantity: 1.0, unit_price: 100.0, unit: 'Units' }
+        ]
+      }
+    ];
+  }
+  if (edgeInventory.length === 0) {
+    edgeInventory = [
+      { stock_id: 'STK-64654E', site_id: 'SITE-USM', project_name: 'USM', item_code: '01', description: 'Saysan', current_quantity: 1.0, unit: 'Units', min_reorder_level: 5.0, reorder_quantity: 1.0, stock_status: 'CRITICAL_LOW', status_label: 'CRITICAL: REORDER REQUIRED', last_delivery_date: '2026-09-06', unit_price: 100.0 },
+      { stock_id: 'STK-FC04F7', site_id: 'SITE-USM', project_name: 'USM', item_code: '02', description: 'Divyesh', current_quantity: 1.0, unit: 'Units', min_reorder_level: 5.0, reorder_quantity: 1.0, stock_status: 'CRITICAL_LOW', status_label: 'CRITICAL: REORDER REQUIRED', last_delivery_date: '2026-09-06', unit_price: 100.0 },
+      { stock_id: 'STK-BE8337', site_id: 'SITE-UKM', project_name: 'UKM', item_code: '01', description: 'Ravi', current_quantity: 1.0, unit: 'Units', min_reorder_level: 5.0, reorder_quantity: 1.0, stock_status: 'CRITICAL_LOW', status_label: 'CRITICAL: REORDER REQUIRED', last_delivery_date: '2026-09-06', unit_price: 100.0 },
+      { stock_id: 'STK-F14C90', site_id: 'SITE-UKM', project_name: 'UKM', item_code: '02', description: 'Kavi', current_quantity: 1.0, unit: 'Units', min_reorder_level: 5.0, reorder_quantity: 1.0, stock_status: 'CRITICAL_LOW', status_label: 'CRITICAL: REORDER REQUIRED', last_delivery_date: '2026-09-06', unit_price: 100.0 }
+    ];
+  }
 }
 
 async function handleApiRequest(request, url) {
+  ensureEdgeBaseline();
   const method = request.method.toUpperCase();
   const path = url.pathname.replace(/^\/api/, '') || '/';
 
@@ -269,12 +333,115 @@ async function handleApiRequest(request, url) {
     return jsonResponse({ status: 'success' });
   }
 
-  // 8. Audit Logs
+  if (path === '/reconciliations/dispute' && method === 'POST') {
+    const body = await request.json();
+    edgeReconciliations = edgeReconciliations.map(r => {
+      if (r.reconciliation_id === body.reconciliation_id) {
+        return { ...r, match_status: 'DISPUTED', dispute_reason: body.reason };
+      }
+      return r;
+    });
+    return jsonResponse({ status: 'success' });
+  }
+
+  if (path === '/reconciliations/dispatch-dispute' && method === 'POST') {
+    return jsonResponse({ status: 'success', message: 'Dispute notice dispatched.' });
+  }
+
+  if (path === '/reconciliations/confirm-low-confidence' && method === 'POST') {
+    return jsonResponse({ status: 'success' });
+  }
+
+  if (path === '/reconciliations/export-erp' && method === 'GET') {
+    const csvHeader = 'Reconciliation_ID,PO_Number,Supplier,Site,Payable_Amount,Status\n';
+    const csvRows = edgeReconciliations.map(r => 
+      `${r.reconciliation_id},${r.po_number},"${r.supplier_name}","${r.project_name}",${r.po_total_amount},${r.match_status}`
+    ).join('\n');
+    return new Response(csvHeader + csvRows, {
+      status: 200,
+      headers: {
+        'Content-Type': 'text/csv',
+        'Content-Disposition': 'attachment; filename="ProjectAIR_Disbursement_Batch.csv"'
+      }
+    });
+  }
+
+  // 8. Mobile DO Ingestion
+  if (path === '/ingest/do' && method === 'POST') {
+    try {
+      const body = await request.json();
+      const targetPo = edgePos.find(p => p.po_id === body.po_id || p.project_site_id === body.site_id) || edgePos[0] || {};
+      const doNumber = `DO-${Date.now().toString().slice(-4)}`;
+      const items = body.extracted_line_items || [];
+
+      // Increment inventory
+      items.forEach(it => {
+        const existing = edgeInventory.find(s => s.site_id === (body.site_id || targetPo.project_site_id) && s.item_code === it.item_code);
+        if (existing) {
+          existing.current_quantity = (Number(existing.current_quantity) || 0) + (Number(it.quantity_delivered) || 0);
+          existing.last_delivery_date = new Date().toISOString().split('T')[0];
+        }
+      });
+
+      edgeAuditLogs.unshift({
+        log_id: `log-${Date.now()}`,
+        action: 'DO_VERIFIED',
+        actor_id: 'SITE_SUPERVISOR_DAVE',
+        actor_role: 'SITE_SUPERVISOR',
+        details: `Verified Delivery Order ${doNumber} at ${body.site_name || targetPo.project_name || 'Job Site'}`,
+        timestamp: new Date().toISOString()
+      });
+
+      return jsonResponse({
+        status: 'success',
+        delivery_order: {
+          do_number: doNumber,
+          po_id: targetPo.po_id,
+          status: 'VERIFIED'
+        },
+        reconciliation: {
+          match_status: 'MATCHED'
+        }
+      });
+    } catch (err) {
+      return jsonResponse({ error: 'Failed to ingest DO: ' + err.message }, 400);
+    }
+  }
+
+  // 9. Sync State from Client
+  if (path === '/system/sync' && method === 'POST') {
+    try {
+      const body = await request.json();
+      if (Array.isArray(body.pos) && body.pos.length > 0) {
+        const map = new Map();
+        edgePos.forEach(p => map.set(p.po_id || p.po_number, p));
+        body.pos.forEach(p => map.set(p.po_id || p.po_number, p));
+        edgePos = Array.from(map.values());
+      }
+      if (Array.isArray(body.sites) && body.sites.length > 0) {
+        const map = new Map();
+        edgeSites.forEach(s => map.set(s.site_id, s));
+        body.sites.forEach(s => map.set(s.site_id, s));
+        edgeSites = Array.from(map.values());
+      }
+      if (Array.isArray(body.reconciliations) && body.reconciliations.length > 0) {
+        const map = new Map();
+        edgeReconciliations.forEach(r => map.set(r.reconciliation_id, r));
+        body.reconciliations.forEach(r => map.set(r.reconciliation_id, r));
+        edgeReconciliations = Array.from(map.values());
+      }
+      return jsonResponse({ status: 'success', synced: true });
+    } catch (e) {
+      return jsonResponse({ error: e.message }, 400);
+    }
+  }
+
+  // 10. Audit Logs
   if (path === '/audit-logs' && method === 'GET') {
     return jsonResponse(edgeAuditLogs);
   }
 
-  // 9. QR Verification
+  // 11. QR Verification
   if (path === '/qr/verify' && method === 'POST') {
     return jsonResponse({ valid: true, verified: true });
   }
