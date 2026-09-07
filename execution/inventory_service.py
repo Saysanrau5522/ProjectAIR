@@ -119,6 +119,21 @@ def get_inventory_stocks(site_id: Optional[str] = None) -> List[Dict[str, Any]]:
     if site_id and site_id != "ALL":
         query = """
             SELECT s.*, 
+                   COALESCE((
+                       SELECT SUM(poli.quantity)
+                       FROM po_line_items poli
+                       JOIN purchase_orders po ON poli.po_id = po.po_id
+                       WHERE po.project_site_id = s.site_id
+                         AND (poli.item_code = s.item_code OR UPPER(TRIM(poli.description)) = UPPER(TRIM(s.description)))
+                   ), s.reorder_quantity, 0.0) as po_ordered_quantity,
+                   COALESCE((
+                       SELECT po.po_number
+                       FROM po_line_items poli
+                       JOIN purchase_orders po ON poli.po_id = po.po_id
+                       WHERE po.project_site_id = s.site_id
+                         AND (poli.item_code = s.item_code OR UPPER(TRIM(poli.description)) = UPPER(TRIM(s.description)))
+                       ORDER BY po.created_at DESC LIMIT 1
+                   ), (SELECT po_number FROM purchase_orders WHERE project_site_id = s.site_id ORDER BY created_at DESC LIMIT 1)) as po_number,
                    COALESCE((SELECT project_name FROM purchase_orders WHERE project_site_id = s.site_id LIMIT 1), s.site_id) as project_name
             FROM inventory_stocks s
             WHERE s.site_id = ?
@@ -128,6 +143,21 @@ def get_inventory_stocks(site_id: Optional[str] = None) -> List[Dict[str, Any]]:
     else:
         query = """
             SELECT s.*, 
+                   COALESCE((
+                       SELECT SUM(poli.quantity)
+                       FROM po_line_items poli
+                       JOIN purchase_orders po ON poli.po_id = po.po_id
+                       WHERE po.project_site_id = s.site_id
+                         AND (poli.item_code = s.item_code OR UPPER(TRIM(poli.description)) = UPPER(TRIM(s.description)))
+                   ), s.reorder_quantity, 0.0) as po_ordered_quantity,
+                   COALESCE((
+                       SELECT po.po_number
+                       FROM po_line_items poli
+                       JOIN purchase_orders po ON poli.po_id = po.po_id
+                       WHERE po.project_site_id = s.site_id
+                         AND (poli.item_code = s.item_code OR UPPER(TRIM(poli.description)) = UPPER(TRIM(s.description)))
+                       ORDER BY po.created_at DESC LIMIT 1
+                   ), (SELECT po_number FROM purchase_orders WHERE project_site_id = s.site_id ORDER BY created_at DESC LIMIT 1)) as po_number,
                    COALESCE((SELECT project_name FROM purchase_orders WHERE project_site_id = s.site_id LIMIT 1), s.site_id) as project_name
             FROM inventory_stocks s
             ORDER BY s.site_id ASC, s.current_quantity ASC
@@ -137,7 +167,11 @@ def get_inventory_stocks(site_id: Optional[str] = None) -> List[Dict[str, Any]]:
     for item in stocks:
         curr = float(item["current_quantity"])
         min_lvl = float(item["min_reorder_level"])
-        if curr <= min_lvl:
+        last_date = item.get("last_delivery_date")
+        if curr == 0.0 and not last_date:
+            item["stock_status"] = "AWAITING_DELIVERY"
+            item["status_label"] = "AWAITING GATE DELIVERY (DO PENDING)"
+        elif curr <= min_lvl:
             item["stock_status"] = "CRITICAL_LOW"
             item["status_label"] = "CRITICAL: REORDER REQUIRED"
         elif curr <= (min_lvl * 1.5):

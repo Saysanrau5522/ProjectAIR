@@ -17,7 +17,8 @@ import {
   Save,
   CheckCircle,
   Clock,
-  Info
+  Info,
+  FileText
 } from 'lucide-react';
 
 import { getApiBase } from '../utils/token';
@@ -313,7 +314,8 @@ export default function InventoryManager({ onRefreshLedger }) {
               <tr>
                 <th>Job Site</th>
                 <th>Material &amp; SKU</th>
-                <th>On-Hand Balance</th>
+                <th>PO Stated / Ordered</th>
+                <th>Physical On-Hand Stock</th>
                 <th>Safety Threshold</th>
                 <th>Stock Status</th>
                 <th>Last Receipt</th>
@@ -323,15 +325,16 @@ export default function InventoryManager({ onRefreshLedger }) {
             <tbody>
               {filteredStocks.length === 0 ? (
                 <tr>
-                  <td colSpan="7" style={{ textAlign: 'center', padding: '40px', color: 'var(--text-muted)' }}>
+                  <td colSpan="8" style={{ textAlign: 'center', padding: '40px', color: 'var(--text-muted)' }}>
                     No materials found matching your search.
                   </td>
                 </tr>
               ) : (
                 filteredStocks.map(stock => {
                   const curr = parseFloat(stock.current_quantity) || 0;
+                  const poQty = parseFloat(stock.po_ordered_quantity) || parseFloat(stock.reorder_quantity) || 0;
                   const min = parseFloat(stock.min_reorder_level) || 1;
-                  const pct = Math.min(100, Math.round((curr / (min * 2)) * 100));
+                  const intakePct = poQty > 0 ? Math.min(100, Math.round((curr / poQty) * 100)) : 0;
                   const isEditingThis = editingStockId === stock.stock_id;
 
                   return (
@@ -350,27 +353,35 @@ export default function InventoryManager({ onRefreshLedger }) {
                         </div>
                       </td>
 
+                      {/* PO Stated Quantity Column */}
                       <td>
-                        <div className="tabular-nums" style={{ fontSize: '14px', fontWeight: '600', color: curr > 0 ? '#FFF' : 'var(--text-muted)' }}>
-                          {curr.toLocaleString()} <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{stock.unit} on-site</span>
+                        <div className="tabular-nums" style={{ fontSize: '14px', fontWeight: '700', color: 'var(--cyber-cyan)' }}>
+                          {poQty.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 2 })} <span style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: '400' }}>{stock.unit}</span>
                         </div>
-                        {curr === 0 ? (
-                          <div style={{ fontSize: '11px', color: 'var(--accent-cyan)', marginTop: '2px', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                            <Clock size={10} /> +{stock.reorder_quantity || 0} {stock.unit} on PO (Pending DO)
-                          </div>
-                        ) : (
-                          /* Progress bar */
-                          <div style={{ width: '110px', height: '5px', background: 'rgba(255,255,255,0.08)', borderRadius: '3px', marginTop: '6px', overflow: 'hidden' }}>
-                            <div 
-                              style={{ 
-                                width: `${pct}%`, 
-                                height: '100%', 
-                                background: stock.stock_status === 'CRITICAL_LOW' ? 'var(--accent-rose)' : stock.stock_status === 'LOW' ? 'var(--accent-amber)' : 'var(--accent-emerald)',
-                                transition: 'width 0.3s ease'
-                              }} 
-                            />
-                          </div>
-                        )}
+                        <div style={{ fontSize: '11px', color: 'var(--text-secondary)', fontFamily: 'JetBrains Mono', marginTop: '2px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                          <FileText size={10} color="var(--accent-blue)" /> {stock.po_number || 'PO Authorized'}
+                        </div>
+                      </td>
+
+                      {/* Physical On-Hand Stock Column */}
+                      <td>
+                        <div className="tabular-nums" style={{ fontSize: '14px', fontWeight: '700', color: curr > 0 ? '#10b981' : 'var(--text-muted)' }}>
+                          {curr.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 2 })} <span style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: '400' }}>{stock.unit} on-site</span>
+                        </div>
+                        {/* Delivery intake progress bar */}
+                        <div style={{ width: '120px', height: '5px', background: 'rgba(255,255,255,0.08)', borderRadius: '3px', marginTop: '6px', overflow: 'hidden' }}>
+                          <div 
+                            style={{ 
+                              width: `${intakePct}%`, 
+                              height: '100%', 
+                              background: curr >= poQty && poQty > 0 ? 'var(--accent-emerald)' : curr > 0 ? 'var(--accent-amber)' : 'rgba(255, 255, 255, 0.2)',
+                              transition: 'width 0.3s ease'
+                            }} 
+                          />
+                        </div>
+                        <div style={{ fontSize: '10px', color: curr > 0 ? '#10b981' : 'var(--text-muted)', marginTop: '3px' }}>
+                          {curr > 0 ? `${intakePct}% intake received` : '0% received (DO pending)'}
+                        </div>
                       </td>
 
                       <td>

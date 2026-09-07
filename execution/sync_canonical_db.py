@@ -35,11 +35,13 @@ def sync_canonical_db():
         VALUES (?, ?, ?, ?, ?, '2026-09-06', ?, 'MYR', 'OPEN')
     """, (po_id, po_number, site_id, site_name, supplier_name, total_amount))
 
-    # Line Item
+    # Line Items
     cursor.execute("""
         INSERT INTO po_line_items (id, po_id, item_code, description, unit, quantity, unit_price, total_price)
-        VALUES ('POLI-369-01', ?, 'MAT-GEN-01', 'General Materials', 'Units', 1.0, 270.00, 270.00)
-    """, (po_id,))
+        VALUES 
+        ('POLI-369-01', ?, 'MAT-GARD-01', 'Gardenia Classic 400g', 'Loaf', 10.0, 15.00, 150.00),
+        ('POLI-369-02', ?, 'MAT-GARD-02', 'Gardenia Wholemeal 400g', 'Loaf', 8.0, 15.00, 120.00)
+    """, (po_id, po_id))
 
     # Token
     token = generate_scoped_token(
@@ -71,8 +73,10 @@ def sync_canonical_db():
 
     cursor.execute("""
         INSERT INTO invoice_line_items (id, invoice_id, description, quantity_billed, unit_price, total_price, confidence, gl_code, gl_category)
-        VALUES ('INVI-369-01', ?, 'General Materials', 1.0, 270.00, 270.00, 1.0, '5010-MAT', 'COGS - Direct Materials')
-    """, (inv_id,))
+        VALUES 
+        ('INVI-369-01', ?, 'Gardenia Classic 400g', 10.0, 15.00, 150.00, 1.0, '5010-MAT', 'COGS - Direct Materials'),
+        ('INVI-369-02', ?, 'Gardenia Wholemeal 400g', 8.0, 15.00, 120.00, 1.0, '5010-MAT', 'COGS - Direct Materials')
+    """, (inv_id, inv_id))
 
     rec_id = "REC-MADINA-369"
     dispute_notice = f"FORMAL PAYMENT DISPUTE NOTICE\nReference: PO #PO-2026-369 | Invoice #INV-369\nSupplier: {supplier_name}\nProject AIR 3-Way Match audit detected unverified charges.\nTotal Overpayment Blocked: RM 270.00.\nDelivery Order site records do not substantiate billed quantities.\nPlease issue a revised invoice or credit note before payment can be scheduled."
@@ -91,13 +95,20 @@ def sync_canonical_db():
             ordered_qty, cumulative_delivered_qty, cumulative_billed_qty,
             po_unit_price, billed_unit_price, variance_qty, variance_price,
             overpayment_amount, discrepancy_type, gl_code, gl_category
-        ) VALUES (
-            'RECI-369-01', ?, 'General Materials',
-            1.0, 0.0, 1.0,
-            270.00, 270.00, 1.0, 0.0,
-            270.00, 'UNRECEIVED_MATERIAL', '5010-MAT', 'COGS - Direct Materials'
+        ) VALUES 
+        (
+            'RECI-369-01', ?, 'Gardenia Classic 400g',
+            10.0, 0.0, 10.0,
+            15.00, 15.00, 10.0, 0.0,
+            150.00, 'UNRECEIVED_MATERIAL', '5010-MAT', 'COGS - Direct Materials'
+        ),
+        (
+            'RECI-369-02', ?, 'Gardenia Wholemeal 400g',
+            8.0, 0.0, 8.0,
+            15.00, 15.00, 8.0, 0.0,
+            120.00, 'UNRECEIVED_MATERIAL', '5010-MAT', 'COGS - Direct Materials'
         )
-    """, (rec_id,))
+    """, (rec_id, rec_id))
 
     # 4. Audit Log
     cursor.execute("""

@@ -125,8 +125,8 @@ function ensureEdgeBaseline() {
 
   if (edgeInventory.length === 0) {
     const defaultInv = [
-      { stock_id: 'STK-MADINA-01', site_id: 'SITE-MADINA', project_name: 'MADINA', item_code: 'MAT-GARD-01', description: 'Gardenia Classic 400g', current_quantity: 0.0, unit: 'Loaf', min_reorder_level: 5.0, reorder_quantity: 10.0, stock_status: 'AWAITING_DELIVERY', status_label: 'AWAITING GATE DELIVERY (DO PENDING)', last_delivery_date: null, unit_price: 15.0 },
-      { stock_id: 'STK-MADINA-02', site_id: 'SITE-MADINA', project_name: 'MADINA', item_code: 'MAT-GARD-02', description: 'Gardenia Wholemeal 400g', current_quantity: 0.0, unit: 'Loaf', min_reorder_level: 5.0, reorder_quantity: 8.0, stock_status: 'AWAITING_DELIVERY', status_label: 'AWAITING GATE DELIVERY (DO PENDING)', last_delivery_date: null, unit_price: 15.0 }
+      { stock_id: 'STK-MADINA-01', site_id: 'SITE-MADINA', project_name: 'MADINA', item_code: 'MAT-GARD-01', description: 'Gardenia Classic 400g', current_quantity: 0.0, po_ordered_quantity: 10.0, po_number: 'PO-2026-369', unit: 'Loaf', min_reorder_level: 5.0, reorder_quantity: 10.0, stock_status: 'AWAITING_DELIVERY', status_label: 'AWAITING GATE DELIVERY (DO PENDING)', last_delivery_date: null, unit_price: 15.0 },
+      { stock_id: 'STK-MADINA-02', site_id: 'SITE-MADINA', project_name: 'MADINA', item_code: 'MAT-GARD-02', description: 'Gardenia Wholemeal 400g', current_quantity: 0.0, po_ordered_quantity: 8.0, po_number: 'PO-2026-369', unit: 'Loaf', min_reorder_level: 5.0, reorder_quantity: 8.0, stock_status: 'AWAITING_DELIVERY', status_label: 'AWAITING GATE DELIVERY (DO PENDING)', last_delivery_date: null, unit_price: 15.0 }
     ];
     edgeInventory = defaultInv.filter(i => 
       !edgeDeletedSites.has(i.site_id.toUpperCase()) && 
@@ -250,6 +250,8 @@ async function handleApiRequest(request, url) {
         if (existingIdx >= 0) {
           edgeInventory[existingIdx] = {
             ...edgeInventory[existingIdx],
+            po_ordered_quantity: (Number(edgeInventory[existingIdx].po_ordered_quantity) || 0) + qty,
+            po_number: newPo.po_number,
             reorder_quantity: batchQty,
             min_reorder_level: minReorder
           };
@@ -260,6 +262,8 @@ async function handleApiRequest(request, url) {
             project_name: siteName,
             item_code: it.item_code,
             description: it.description,
+            po_ordered_quantity: qty,
+            po_number: newPo.po_number,
             current_quantity: 0,
             unit: it.unit || 'Units',
             min_reorder_level: minReorder,
