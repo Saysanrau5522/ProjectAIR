@@ -314,7 +314,7 @@ export default function InventoryManager({ onRefreshLedger }) {
               <tr>
                 <th>Job Site</th>
                 <th>Material &amp; SKU</th>
-                <th>PO Stated / Ordered</th>
+                <th>PO Stated (Qty &amp; Price)</th>
                 <th>Physical On-Hand Stock</th>
                 <th>Safety Threshold</th>
                 <th>Stock Status</th>
@@ -333,6 +333,8 @@ export default function InventoryManager({ onRefreshLedger }) {
                 filteredStocks.map(stock => {
                   const curr = parseFloat(stock.current_quantity) || 0;
                   const poQty = parseFloat(stock.po_ordered_quantity) || parseFloat(stock.reorder_quantity) || 0;
+                  const poUnitPrice = parseFloat(stock.po_unit_price) || parseFloat(stock.unit_price) || 0;
+                  const poTotalPrice = parseFloat(stock.po_total_price) || (poQty * poUnitPrice);
                   const min = parseFloat(stock.min_reorder_level) || 1;
                   const intakePct = poQty > 0 ? Math.min(100, Math.round((curr / poQty) * 100)) : 0;
                   const isEditingThis = editingStockId === stock.stock_id;
@@ -353,12 +355,22 @@ export default function InventoryManager({ onRefreshLedger }) {
                         </div>
                       </td>
 
-                      {/* PO Stated Quantity Column */}
+                      {/* PO Stated Quantity & Price Column */}
                       <td>
                         <div className="tabular-nums" style={{ fontSize: '14px', fontWeight: '700', color: 'var(--cyber-cyan)' }}>
                           {poQty.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 2 })} <span style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: '400' }}>{stock.unit}</span>
                         </div>
-                        <div style={{ fontSize: '11px', color: 'var(--text-secondary)', fontFamily: 'JetBrains Mono', marginTop: '2px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                        {poUnitPrice > 0 && (
+                          <div className="tabular-nums" style={{ fontSize: '12px', fontWeight: '600', color: 'var(--pixel-yellow)', marginTop: '2px', display: 'flex', alignItems: 'center', gap: '4px', flexWrap: 'wrap' }}>
+                            <span>RM {poUnitPrice.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} / {stock.unit}</span>
+                            {poTotalPrice > 0 && (
+                              <span style={{ fontSize: '10px', color: 'var(--text-muted)', fontWeight: '400' }}>
+                                (Total: RM {poTotalPrice.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })})
+                              </span>
+                            )}
+                          </div>
+                        )}
+                        <div style={{ fontSize: '11px', color: 'var(--text-secondary)', fontFamily: 'JetBrains Mono', marginTop: '3px', display: 'flex', alignItems: 'center', gap: '4px' }}>
                           <FileText size={10} color="var(--accent-blue)" /> {stock.po_number || 'PO Authorized'}
                         </div>
                       </td>

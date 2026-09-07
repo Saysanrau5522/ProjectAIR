@@ -127,6 +127,21 @@ def get_inventory_stocks(site_id: Optional[str] = None) -> List[Dict[str, Any]]:
                          AND (poli.item_code = s.item_code OR UPPER(TRIM(poli.description)) = UPPER(TRIM(s.description)))
                    ), s.reorder_quantity, 0.0) as po_ordered_quantity,
                    COALESCE((
+                       SELECT poli.unit_price
+                       FROM po_line_items poli
+                       JOIN purchase_orders po ON poli.po_id = po.po_id
+                       WHERE po.project_site_id = s.site_id
+                         AND (poli.item_code = s.item_code OR UPPER(TRIM(poli.description)) = UPPER(TRIM(s.description)))
+                       ORDER BY po.created_at DESC LIMIT 1
+                   ), 15.00) as po_unit_price,
+                   COALESCE((
+                       SELECT SUM(poli.total_price)
+                       FROM po_line_items poli
+                       JOIN purchase_orders po ON poli.po_id = po.po_id
+                       WHERE po.project_site_id = s.site_id
+                         AND (poli.item_code = s.item_code OR UPPER(TRIM(poli.description)) = UPPER(TRIM(s.description)))
+                   ), 0.0) as po_total_price,
+                   COALESCE((
                        SELECT po.po_number
                        FROM po_line_items poli
                        JOIN purchase_orders po ON poli.po_id = po.po_id
@@ -150,6 +165,21 @@ def get_inventory_stocks(site_id: Optional[str] = None) -> List[Dict[str, Any]]:
                        WHERE po.project_site_id = s.site_id
                          AND (poli.item_code = s.item_code OR UPPER(TRIM(poli.description)) = UPPER(TRIM(s.description)))
                    ), s.reorder_quantity, 0.0) as po_ordered_quantity,
+                   COALESCE((
+                       SELECT poli.unit_price
+                       FROM po_line_items poli
+                       JOIN purchase_orders po ON poli.po_id = po.po_id
+                       WHERE po.project_site_id = s.site_id
+                         AND (poli.item_code = s.item_code OR UPPER(TRIM(poli.description)) = UPPER(TRIM(s.description)))
+                       ORDER BY po.created_at DESC LIMIT 1
+                   ), 15.00) as po_unit_price,
+                   COALESCE((
+                       SELECT SUM(poli.total_price)
+                       FROM po_line_items poli
+                       JOIN purchase_orders po ON poli.po_id = po.po_id
+                       WHERE po.project_site_id = s.site_id
+                         AND (poli.item_code = s.item_code OR UPPER(TRIM(poli.description)) = UPPER(TRIM(s.description)))
+                   ), 0.0) as po_total_price,
                    COALESCE((
                        SELECT po.po_number
                        FROM po_line_items poli
