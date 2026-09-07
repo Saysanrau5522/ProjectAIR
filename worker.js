@@ -3,7 +3,7 @@
  * Runs at the Cloudflare Edge to handle REST endpoints and serve the React UI.
  */
 
-// In-memory state for edge execution
+// In-memory state for edge execution with deletion tombstones
 let edgePos = [];
 let edgeSites = [];
 let edgeReconciliations = [];
@@ -11,6 +11,9 @@ let edgeAuditLogs = [];
 let edgeInventory = [];
 let edgeDeliveryOrders = [];
 let edgeThresholdPresets = {};
+let edgeDeletedSites = new Set();
+let edgeDeletedSkus = new Set();
+let baselineInitialized = false;
 
 function jsonResponse(data, status = 200) {
   return new Response(JSON.stringify(data, null, 2), {
@@ -38,67 +41,98 @@ function generateEdgeToken(payload, secret = 'air_edge_secret_8842') {
 }
 
 function ensureEdgeBaseline() {
+  if (baselineInitialized) return;
+  baselineInitialized = true;
+
   if (edgeSites.length === 0) {
-    edgeSites = [
-      { site_id: 'SITE-USM', project_name: 'USM', location: 'Penang, Malaysia', created_at: '2026-09-06' },
-      { site_id: 'SITE-UKM', project_name: 'UKM', location: 'Bangi, Selangor, Malaysia', created_at: '2026-09-06' }
+    const defaultSites = [
+      { site_id: 'SITE-MADINA', project_name: 'MADINA', location: 'Madina Project Site, Malaysia', created_at: '2026-09-06' }
     ];
+    edgeSites = defaultSites.filter(s => !edgeDeletedSites.has(s.site_id.toUpperCase()));
   }
+
   if (edgePos.length === 0) {
-    const po1Token = generateEdgeToken({
-      po_id: 'PO-2F6949',
-      po_number: 'PO-2026-382',
-      site_id: 'SITE-USM',
-      project_name: 'USM',
-      supplier_name: 'APEX',
-      total_amount: 200.0
-    });
-    const po2Token = generateEdgeToken({
-      po_id: 'PO-2BFAA9',
-      po_number: 'PO-2026-121',
-      site_id: 'SITE-UKM',
-      project_name: 'UKM',
-      supplier_name: 'Apex',
-      total_amount: 200.0
-    });
-    edgePos = [
-      {
-        po_id: 'PO-2F6949',
-        po_number: 'PO-2026-382',
-        project_site_id: 'SITE-USM',
-        project_name: 'USM',
-        supplier_name: 'APEX',
-        total_amount: 200.0,
+    const initialPos = [];
+    if (!edgeDeletedSites.has('SITE-MADINA')) {
+      const poToken = generateEdgeToken({
+        po_id: 'PO-2026-369',
+        po_number: 'PO-2026-369',
+        site_id: 'SITE-MADINA',
+        project_name: 'MADINA',
+        supplier_name: 'GARDENIA',
+        total_amount: 270.0
+      });
+      initialPos.push({
+        po_id: 'PO-2026-369',
+        po_number: 'PO-2026-369',
+        project_site_id: 'SITE-MADINA',
+        project_name: 'MADINA',
+        supplier_name: 'GARDENIA',
+        total_amount: 270.0,
         issue_date: '2026-09-06',
-        token: po1Token,
+        token: poToken,
         items: [
-          { item_code: '01', description: 'Saysan', quantity: 1.0, unit_price: 100.0, unit: 'Units' },
-          { item_code: '02', description: 'Divyesh', quantity: 1.0, unit_price: 100.0, unit: 'Units' }
+          { item_code: 'MAT-GARD-01', description: 'Gardenia Classic 400g', quantity: 10.0, unit_price: 15.0, unit: 'Loaf' },
+          { item_code: 'MAT-GARD-02', description: 'Gardenia Wholemeal 400g', quantity: 8.0, unit_price: 15.0, unit: 'Loaf' }
         ]
-      },
-      {
-        po_id: 'PO-2BFAA9',
-        po_number: 'PO-2026-121',
-        project_site_id: 'SITE-UKM',
-        project_name: 'UKM',
-        supplier_name: 'Apex',
-        total_amount: 200.0,
-        issue_date: '2026-09-06',
-        token: po2Token,
-        items: [
-          { item_code: '01', description: 'Ravi', quantity: 1.0, unit_price: 100.0, unit: 'Units' },
-          { item_code: '02', description: 'Kavi', quantity: 1.0, unit_price: 100.0, unit: 'Units' }
-        ]
-      }
-    ];
+      });
+    }
+    edgePos = initialPos;
   }
+
+  if (edgeReconciliations.length === 0) {
+    if (!edgeDeletedSites.has('SITE-MADINA')) {
+      edgeReconciliations.push({
+        reconciliation_id: 'rec-2026-369',
+        po_id: 'PO-2026-369',
+        po_number: 'PO-2026-369',
+        invoice_number: 'INV-2026-369',
+        supplier_name: 'GARDENIA',
+        project_name: 'MADINA',
+        po_total_amount: 270.0,
+        invoice_total_amount: 270.0,
+        total_overpayment_blocked: 270.0,
+        verified_payable_amount: 0.0,
+        match_status: 'DISCREPANCY_FLAGGED',
+        has_discrepancy: true,
+        items: [
+          {
+            item_code: 'MAT-GARD-01',
+            description: 'Gardenia Classic 400g',
+            po_quantity: 10.0,
+            po_unit_price: 15.0,
+            cumulative_delivered_qty: 0,
+            cumulative_billed_qty: 10.0,
+            variance_qty: 10.0,
+            discrepancy_type: 'UNRECEIVED_MATERIAL',
+            verified_payable_amount: 0.0
+          },
+          {
+            item_code: 'MAT-GARD-02',
+            description: 'Gardenia Wholemeal 400g',
+            po_quantity: 8.0,
+            po_unit_price: 15.0,
+            cumulative_delivered_qty: 0,
+            cumulative_billed_qty: 8.0,
+            variance_qty: 8.0,
+            discrepancy_type: 'UNRECEIVED_MATERIAL',
+            verified_payable_amount: 0.0
+          }
+        ]
+      });
+    }
+  }
+
   if (edgeInventory.length === 0) {
-    edgeInventory = [
-      { stock_id: 'STK-64654E', site_id: 'SITE-USM', project_name: 'USM', item_code: '01', description: 'Saysan', current_quantity: 1.0, unit: 'Units', min_reorder_level: 5.0, reorder_quantity: 1.0, stock_status: 'CRITICAL_LOW', status_label: 'CRITICAL: REORDER REQUIRED', last_delivery_date: '2026-09-06', unit_price: 100.0 },
-      { stock_id: 'STK-FC04F7', site_id: 'SITE-USM', project_name: 'USM', item_code: '02', description: 'Divyesh', current_quantity: 1.0, unit: 'Units', min_reorder_level: 5.0, reorder_quantity: 1.0, stock_status: 'CRITICAL_LOW', status_label: 'CRITICAL: REORDER REQUIRED', last_delivery_date: '2026-09-06', unit_price: 100.0 },
-      { stock_id: 'STK-BE8337', site_id: 'SITE-UKM', project_name: 'UKM', item_code: '01', description: 'Ravi', current_quantity: 1.0, unit: 'Units', min_reorder_level: 5.0, reorder_quantity: 1.0, stock_status: 'CRITICAL_LOW', status_label: 'CRITICAL: REORDER REQUIRED', last_delivery_date: '2026-09-06', unit_price: 100.0 },
-      { stock_id: 'STK-F14C90', site_id: 'SITE-UKM', project_name: 'UKM', item_code: '02', description: 'Kavi', current_quantity: 1.0, unit: 'Units', min_reorder_level: 5.0, reorder_quantity: 1.0, stock_status: 'CRITICAL_LOW', status_label: 'CRITICAL: REORDER REQUIRED', last_delivery_date: '2026-09-06', unit_price: 100.0 }
+    const defaultInv = [
+      { stock_id: 'STK-MADINA-01', site_id: 'SITE-MADINA', project_name: 'MADINA', item_code: 'MAT-GARD-01', description: 'Gardenia Classic 400g', current_quantity: 0.0, unit: 'Loaf', min_reorder_level: 5.0, reorder_quantity: 10.0, stock_status: 'AWAITING_DELIVERY', status_label: 'AWAITING GATE DELIVERY (DO PENDING)', last_delivery_date: null, unit_price: 15.0 },
+      { stock_id: 'STK-MADINA-02', site_id: 'SITE-MADINA', project_name: 'MADINA', item_code: 'MAT-GARD-02', description: 'Gardenia Wholemeal 400g', current_quantity: 0.0, unit: 'Loaf', min_reorder_level: 5.0, reorder_quantity: 8.0, stock_status: 'AWAITING_DELIVERY', status_label: 'AWAITING GATE DELIVERY (DO PENDING)', last_delivery_date: null, unit_price: 15.0 }
     ];
+    edgeInventory = defaultInv.filter(i => 
+      !edgeDeletedSites.has(i.site_id.toUpperCase()) && 
+      !edgeDeletedSkus.has(i.stock_id) && 
+      !edgeDeletedSkus.has(i.item_code)
+    );
   }
 }
 
@@ -117,10 +151,17 @@ async function handleApiRequest(request, url) {
     const totalSpend = edgePos.reduce((sum, p) => sum + (p.total_amount || 0), 0);
     const totalBlocked = edgeReconciliations.reduce((sum, r) => sum + (r.total_overpayment_blocked || 0), 0);
     return jsonResponse({
+      total_pos: edgePos.length,
+      total_po_value: totalSpend,
+      total_overpayment_blocked: totalBlocked,
+      ready_for_approval: edgeReconciliations.filter(r => r.match_status === 'READY_FOR_APPROVAL').length,
+      discrepancies_flagged: edgeReconciliations.filter(r => r.match_status === 'DISCREPANCY_FLAGGED').length,
+      approved: edgeReconciliations.filter(r => r.match_status === 'APPROVED').length,
+      disputed: edgeReconciliations.filter(r => r.match_status === 'DISPUTED').length,
+      needs_review: 0,
       total_active_pos: edgePos.length,
       total_sites: edgeSites.length,
       total_committed_spend: totalSpend,
-      total_overpayment_blocked: totalBlocked,
       active_discrepancies_count: edgeReconciliations.filter(r => r.match_status === 'DISCREPANCY_FLAGGED').length,
       pending_approvals_count: edgeReconciliations.filter(r => r.match_status === 'READY_FOR_APPROVAL').length
     });
@@ -185,6 +226,9 @@ async function handleApiRequest(request, url) {
         edgePos.unshift(newPo);
       }
 
+      edgeDeletedSites.delete(siteId.toUpperCase());
+      edgeDeletedSites.delete(siteId);
+
       if (!edgeSites.some(s => s.site_id === siteId)) {
         edgeSites.unshift({
           site_id: siteId,
@@ -207,8 +251,7 @@ async function handleApiRequest(request, url) {
           edgeInventory[existingIdx] = {
             ...edgeInventory[existingIdx],
             reorder_quantity: batchQty,
-            min_reorder_level: minReorder,
-            last_delivery_date: newPo.issue_date
+            min_reorder_level: minReorder
           };
         } else {
           edgeInventory.push({
@@ -221,9 +264,9 @@ async function handleApiRequest(request, url) {
             unit: it.unit || 'Units',
             min_reorder_level: minReorder,
             reorder_quantity: batchQty,
-            stock_status: 'CRITICAL_LOW',
-            status_label: 'PENDING FIRST DELIVERY INTAKE',
-            last_delivery_date: newPo.issue_date,
+            stock_status: 'AWAITING_DELIVERY',
+            status_label: 'AWAITING GATE DELIVERY (DO PENDING)',
+            last_delivery_date: null,
             unit_price: it.unit_price || 0
           });
         }
@@ -264,6 +307,7 @@ async function handleApiRequest(request, url) {
       if (!siteId) return jsonResponse({ error: 'site_id is required' }, 400);
 
       const siteIdNorm = siteId.toUpperCase().trim();
+      edgeDeletedSites.add(siteIdNorm);
       const poIdsToDelete = new Set(edgePos.filter(p => (p.project_site_id || '').toUpperCase() === siteIdNorm).map(p => p.po_id));
       const poNumsToDelete = new Set(edgePos.filter(p => (p.project_site_id || '').toUpperCase() === siteIdNorm).map(p => p.po_number));
 
@@ -304,6 +348,11 @@ async function handleApiRequest(request, url) {
       if (!stockId) return jsonResponse({ error: 'stock_id is required' }, 400);
 
       const deletedStock = edgeInventory.find(s => s.stock_id === stockId || s.item_code === stockId);
+      edgeDeletedSkus.add(stockId);
+      if (deletedStock?.item_code) {
+        edgeDeletedSkus.add(deletedStock.item_code);
+        edgeDeletedSkus.add(`${deletedStock.site_id}-${deletedStock.item_code}`);
+      }
       edgeInventory = edgeInventory.filter(s => s.stock_id !== stockId && s.item_code !== stockId);
 
       edgeAuditLogs.unshift({
@@ -554,6 +603,11 @@ async function handleApiRequest(request, url) {
       const targetPo = edgePos.find(p => p.po_id === body.po_id || p.project_site_id === body.site_id) || edgePos[0] || {};
       const doNumber = `DO-${Date.now().toString().slice(-4)}`;
       const items = body.extracted_line_items || [];
+      const confidence = Number(body.confidence_score !== undefined ? body.confidence_score : 0.95);
+      const isFake = body.is_valid_do === false || confidence < 0.30 || body.status === 'REJECTED';
+      const isLowConfidence = !isFake && confidence < 0.85;
+
+      const doStatus = isFake ? 'REJECTED' : (isLowConfidence ? 'NEEDS_REVIEW' : 'CONFIRMED');
 
       // Record in edgeDeliveryOrders for 3-Way Matching
       const newDo = {
@@ -562,8 +616,9 @@ async function handleApiRequest(request, url) {
         po_id: targetPo.po_id,
         site_id: body.site_id || targetPo.project_site_id,
         delivery_date: new Date().toISOString().split('T')[0],
-        status: 'CONFIRMED',
-        items: items.map(it => ({
+        status: doStatus,
+        confidence: confidence,
+        items: isFake ? [] : items.map(it => ({
           item_code: it.item_code,
           description: it.description,
           quantity_received: Number(it.quantity_delivered || it.quantity_received || 0),
@@ -572,36 +627,44 @@ async function handleApiRequest(request, url) {
       };
       edgeDeliveryOrders.push(newDo);
 
-      // Increment inventory
-      items.forEach(it => {
-        const qtyReceived = Number(it.quantity_delivered || it.quantity_received || 0);
-        const existing = edgeInventory.find(s => s.site_id === (body.site_id || targetPo.project_site_id) && s.item_code === it.item_code);
-        if (existing) {
-          existing.current_quantity = (Number(existing.current_quantity) || 0) + qtyReceived;
-          existing.last_delivery_date = new Date().toISOString().split('T')[0];
-          existing.stock_status = Number(existing.current_quantity) <= Number(existing.min_reorder_level) ? 'CRITICAL_LOW' : 'OPTIMAL';
-          existing.status_label = existing.stock_status === 'CRITICAL_LOW' ? 'CRITICAL: REORDER REQUIRED' : 'HEALTHY STOCK LEVEL';
-        }
-      });
+      // Increment inventory ONLY IF CONFIRMED (NEVER for rejected fake images or unconfirmed low-confidence DOs!)
+      if (doStatus === 'CONFIRMED') {
+        items.forEach(it => {
+          const qtyReceived = Number(it.quantity_delivered || it.quantity_received || 0);
+          const existing = edgeInventory.find(s => s.site_id === (body.site_id || targetPo.project_site_id) && s.item_code === it.item_code);
+          if (existing) {
+            existing.current_quantity = (Number(existing.current_quantity) || 0) + qtyReceived;
+            existing.last_delivery_date = new Date().toISOString().split('T')[0];
+            existing.stock_status = Number(existing.current_quantity) <= Number(existing.min_reorder_level) ? 'CRITICAL_LOW' : 'OPTIMAL';
+            existing.status_label = existing.stock_status === 'CRITICAL_LOW' ? 'CRITICAL: REORDER REQUIRED' : 'HEALTHY STOCK LEVEL';
+          }
+        });
+      }
 
       edgeAuditLogs.unshift({
         log_id: `log-${Date.now()}`,
-        action: 'DO_VERIFIED',
+        action: isFake ? 'DO_REJECTED' : (isLowConfidence ? 'DO_NEEDS_REVIEW' : 'DO_VERIFIED'),
         actor_id: 'SITE_SUPERVISOR_DAVE',
         actor_role: 'SITE_SUPERVISOR',
-        details: `Verified Delivery Order ${doNumber} at ${body.site_name || targetPo.project_name || 'Job Site'}`,
+        details: isFake
+          ? `Rejected fake / non-DO image upload (Confidence: ${(confidence * 100).toFixed(0)}%) at ${body.site_name || targetPo.project_name || 'Job Site'}`
+          : `Processed Delivery Order ${doNumber} (Status: ${doStatus}, Confidence: ${(confidence * 100).toFixed(0)}%) at ${body.site_name || targetPo.project_name || 'Job Site'}`,
         timestamp: new Date().toISOString()
       });
 
+      const recStatus = isFake ? 'DISCREPANCY_FLAGGED' : (isLowConfidence ? 'NEEDS_REVIEW' : 'MATCHED');
+
       return jsonResponse({
-        status: 'success',
+        status: isFake ? 'rejected' : (isLowConfidence ? 'needs_review' : 'success'),
         delivery_order: {
           do_number: doNumber,
           po_id: targetPo.po_id,
-          status: 'VERIFIED'
+          status: doStatus,
+          confidence: confidence
         },
         reconciliation: {
-          match_status: 'MATCHED'
+          match_status: recStatus,
+          rejection_reason: isFake ? 'Uploaded image failed AI Document Inspection (not a recognized physical Delivery Order)' : null
         }
       });
     } catch (err) {

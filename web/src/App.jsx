@@ -96,7 +96,27 @@ export default function App() {
     } catch (e) {
       console.warn('Could not parse URL query parameters:', e);
     }
+
+    // Auto-sync listener: Whenever mobile/tablet user returns to the app, sync latest data
+    const handleSyncOnWake = () => {
+      if (!document.hidden) {
+        fetchAllData();
+      }
+    };
+
+    window.addEventListener('focus', handleSyncOnWake);
+    document.addEventListener('visibilitychange', handleSyncOnWake);
+
+    return () => {
+      window.removeEventListener('focus', handleSyncOnWake);
+      document.removeEventListener('visibilitychange', handleSyncOnWake);
+    };
   }, []);
+
+  // Re-sync data whenever tab changes (especially on mobile/tablet bottom nav navigation)
+  useEffect(() => {
+    fetchAllData();
+  }, [activeTab]);
 
   // Action: Create PO & Connect to Site
   const handleCreatePo = async (poData) => {
@@ -404,6 +424,7 @@ export default function App() {
             <MobileCapturePWA
               initialToken={mobileToken}
               pos={pos}
+              sites={sites}
               onIngestDo={handleIngestDo}
               onRefresh={fetchAllData}
             />

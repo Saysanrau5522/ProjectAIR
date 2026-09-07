@@ -205,7 +205,7 @@ export default function VendorRiskScorecard() {
                   <div style={{ background: 'var(--bg-surface-elevated)', padding: '10px 12px', borderRadius: 'var(--radius-md)' }}>
                     <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Blocked Leakage</div>
                     <div className="tabular-nums" style={{ fontSize: '15px', fontWeight: '700', color: vendor.total_overpayment_blocked > 0 ? 'var(--accent-amber)' : '#FFF', marginTop: '2px' }}>
-                      ${(vendor.total_overpayment_blocked || 0).toLocaleString(undefined, { minimumFractionDigits: 0 })}
+                      RM {(vendor.total_overpayment_blocked || 0).toLocaleString(undefined, { minimumFractionDigits: 0 })}
                     </div>
                   </div>
                 </div>

@@ -66,7 +66,7 @@ export default function HeaderHUD({
             <Database size={13} color="var(--cyber-cyan)" /> TOTAL PO VALUE
           </div>
           <div className="metric-val font-tabular">
-            ${(hudData.total_po_value || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            RM {(hudData.total_po_value || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
           </div>
           <div style={{ fontSize: '13px', color: 'var(--text-muted)' }}>
             Active Purchase Orders: <span className="font-tabular" style={{ color: '#FFF' }}>{hudData.total_pos || 0}</span>
@@ -78,7 +78,7 @@ export default function HeaderHUD({
             <DollarSign size={13} color="var(--pixel-yellow)" /> OVERPAYMENT BLOCKED
           </div>
           <div className="metric-val font-tabular">
-            ${(hudData.total_overpayment_blocked || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            RM {(hudData.total_overpayment_blocked || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
           </div>
           <div style={{ fontSize: '13px', color: 'var(--pixel-yellow)' }}>
             Total Leakage Prevented

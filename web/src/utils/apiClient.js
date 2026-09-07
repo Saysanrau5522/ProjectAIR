@@ -10,16 +10,37 @@
 import { getApiBase } from './token';
 
 const STORAGE_KEYS = {
-  POS: 'project_air_pos_v2',
-  SITES: 'project_air_sites_v2',
-  RECONCILIATIONS: 'project_air_reconciliations_v2',
-  AUDIT_LOGS: 'project_air_audit_logs_v2',
-  INVENTORY: 'project_air_inventory_v2',
-  DOS: 'project_air_dos_v2',
-  THRESHOLD_PRESETS: 'project_air_threshold_presets_v2',
-  DELETED_SITES: 'project_air_deleted_sites_v2',
-  DELETED_SKUS: 'project_air_deleted_skus_v2'
+  POS: 'project_air_pos_v3',
+  SITES: 'project_air_sites_v3',
+  RECONCILIATIONS: 'project_air_reconciliations_v3',
+  AUDIT_LOGS: 'project_air_audit_logs_v3',
+  INVENTORY: 'project_air_inventory_v3',
+  DOS: 'project_air_dos_v3',
+  THRESHOLD_PRESETS: 'project_air_threshold_presets_v3',
+  DELETED_SITES: 'project_air_deleted_sites_v3',
+  DELETED_SKUS: 'project_air_deleted_skus_v3'
 };
+
+// Automatic Cache Migration: Purge obsolete v1/v2 localStorage from earlier test sessions
+// so all devices (Mobile, Tablet, Desktop) start from the exact same authoritative state!
+const CANONICAL_SCHEMA_VERSION = 'air_canonical_v3_madina_270';
+if (typeof window !== 'undefined') {
+  try {
+    const currentVer = localStorage.getItem('project_air_canonical_schema');
+    if (currentVer !== CANONICAL_SCHEMA_VERSION) {
+      [
+        'project_air_pos_v2', 'project_air_sites_v2', 'project_air_reconciliations_v2',
+        'project_air_audit_logs_v2', 'project_air_inventory_v2', 'project_air_dos_v2',
+        'project_air_deleted_sites_v2', 'project_air_deleted_skus_v2'
+      ].forEach(k => {
+        try { localStorage.removeItem(k); } catch (e) {}
+      });
+      localStorage.setItem('project_air_canonical_schema', CANONICAL_SCHEMA_VERSION);
+    }
+  } catch (e) {
+    // Ignore storage errors in restricted iframe/incognito
+  }
+}
 
 // Generate a client-side HMAC-SHA256 compliant JWT token
 export function generateClientToken(payload, secret = 'air_secret_key_prod_8842') {
@@ -80,28 +101,71 @@ function handleLocalFallback(endpoint, options = {}) {
 
   // 1. GET /hud
   if (endpoint === '/hud' && method === 'GET') {
-    const pos = getStored(STORAGE_KEYS.POS, []);
-    const recs = getStored(STORAGE_KEYS.RECONCILIATIONS, []);
-    const sites = getStored(STORAGE_KEYS.SITES, []);
+    const pos = getStored(STORAGE_KEYS.POS, null);
+    const recs = getStored(STORAGE_KEYS.RECONCILIATIONS, null);
+    const sites = getStored(STORAGE_KEYS.SITES, null);
 
-    const totalSpend = pos.reduce((s, p) => s + (p.total_amount || 0), 0);
-    const blockedOverpayment = recs.reduce((s, r) => s + (r.total_overpayment_blocked || 0), 0);
-    const discrepanciesCount = recs.filter(r => r.match_status === 'DISCREPANCY_FLAGGED').length;
+    // If storage is pristine or empty, return the canonical baseline
+    if (pos === null && recs === null && sites === null) {
+      return {
+        total_pos: 1,
+        total_po_value: 270.0,
+        total_overpayment_blocked: 270.0,
+        ready_for_approval: 0,
+        discrepancies_flagged: 1,
+        approved: 0,
+        disputed: 0,
+        needs_review: 0,
+        total_active_pos: 1,
+        total_sites: 1,
+        total_committed_spend: 270.0
+      };
+    }
+
+    const currentPos = pos || [];
+    const currentRecs = recs || [];
+    const currentSites = sites || [];
+    const totalSpend = currentPos.reduce((s, p) => s + (p.total_amount || 0), 0);
+    const blockedOverpayment = currentRecs.reduce((s, r) => s + (r.total_overpayment_blocked || 0), 0);
+    const discrepanciesCount = currentRecs.filter(r => r.match_status === 'DISCREPANCY_FLAGGED').length;
 
     return {
-      total_active_pos: pos.length,
-      total_sites: sites.length,
-      total_committed_spend: totalSpend,
+      total_pos: currentPos.length,
+      total_po_value: totalSpend,
       total_overpayment_blocked: blockedOverpayment,
-      active_discrepancies_count: discrepanciesCount,
-      pending_approvals_count: recs.filter(r => r.match_status === 'READY_FOR_APPROVAL').length
+      ready_for_approval: currentRecs.filter(r => r.match_status === 'READY_FOR_APPROVAL').length,
+      discrepancies_flagged: discrepanciesCount,
+      approved: currentRecs.filter(r => r.match_status === 'APPROVED').length,
+      disputed: currentRecs.filter(r => r.match_status === 'DISPUTED').length,
+      needs_review: 0,
+      total_active_pos: currentPos.length,
+      total_sites: currentSites.length,
+      total_committed_spend: totalSpend
     };
   }
 
   // 2. GET /pos
   if (endpoint === '/pos' && method === 'GET') {
     const deletedSites = new Set(getStored(STORAGE_KEYS.DELETED_SITES, []).map(s => String(s).toUpperCase()));
-    const pos = getStored(STORAGE_KEYS.POS, []);
+    let pos = getStored(STORAGE_KEYS.POS, null);
+    if (pos === null) {
+      pos = [
+        {
+          po_id: 'PO-2026-369',
+          po_number: 'PO-2026-369',
+          project_site_id: 'SITE-MADINA',
+          project_name: 'MADINA',
+          supplier_name: 'GARDENIA',
+          total_amount: 270.0,
+          issue_date: '2026-09-06',
+          items: [
+            { item_code: 'MAT-GARD-01', description: 'Gardenia Classic 400g', quantity: 10.0, unit_price: 15.0, unit: 'Loaf' },
+            { item_code: 'MAT-GARD-02', description: 'Gardenia Wholemeal 400g', quantity: 8.0, unit_price: 15.0, unit: 'Loaf' }
+          ]
+        }
+      ];
+      setStored(STORAGE_KEYS.POS, pos);
+    }
     const seen = new Set();
     const deduped = [];
     for (const p of pos) {
@@ -119,13 +183,65 @@ function handleLocalFallback(endpoint, options = {}) {
   // 3. GET /sites
   if (endpoint === '/sites' && method === 'GET') {
     const deletedSites = new Set(getStored(STORAGE_KEYS.DELETED_SITES, []).map(s => String(s).toUpperCase()));
-    const sites = getStored(STORAGE_KEYS.SITES, []);
+    let sites = getStored(STORAGE_KEYS.SITES, null);
+    if (sites === null) {
+      sites = [
+        { site_id: 'SITE-MADINA', project_name: 'MADINA', location: 'Madina Project Site, Malaysia', created_at: '2026-09-06' }
+      ];
+      setStored(STORAGE_KEYS.SITES, sites);
+    }
     return sites.filter(s => !deletedSites.has((s.site_id || '').toUpperCase()));
   }
 
   // 4. GET /reconciliations
   if (endpoint === '/reconciliations' && method === 'GET') {
-    return getStored(STORAGE_KEYS.RECONCILIATIONS, []);
+    let recs = getStored(STORAGE_KEYS.RECONCILIATIONS, null);
+    if (recs === null) {
+      recs = [
+        {
+          reconciliation_id: 'rec-2026-369',
+          po_id: 'PO-2026-369',
+          po_number: 'PO-2026-369',
+          invoice_number: 'INV-2026-369',
+          supplier_name: 'GARDENIA',
+          project_name: 'MADINA',
+          project_site_id: 'SITE-MADINA',
+          po_total_amount: 270.0,
+          invoice_total_amount: 270.0,
+          total_overpayment_blocked: 270.0,
+          verified_payable_amount: 0.0,
+          match_status: 'DISCREPANCY_FLAGGED',
+          has_discrepancy: true,
+          items: [
+            {
+              item_code: 'MAT-GARD-01',
+              description: 'Gardenia Classic 400g',
+              po_quantity: 10.0,
+              po_unit_price: 15.0,
+              cumulative_delivered_qty: 0,
+              cumulative_billed_qty: 10.0,
+              variance_qty: 10.0,
+              discrepancy_type: 'UNRECEIVED_MATERIAL',
+              verified_payable_amount: 0.0
+            },
+            {
+              item_code: 'MAT-GARD-02',
+              description: 'Gardenia Wholemeal 400g',
+              po_quantity: 8.0,
+              po_unit_price: 15.0,
+              cumulative_delivered_qty: 0,
+              cumulative_billed_qty: 8.0,
+              variance_qty: 8.0,
+              discrepancy_type: 'UNRECEIVED_MATERIAL',
+              verified_payable_amount: 0.0
+            }
+          ]
+        }
+      ];
+      setStored(STORAGE_KEYS.RECONCILIATIONS, recs);
+    }
+    const deletedSites = new Set(getStored(STORAGE_KEYS.DELETED_SITES, []).map(s => String(s).toUpperCase()));
+    return recs.filter(r => !deletedSites.has((r.project_site_id || r.site_id || '').toUpperCase()));
   }
 
   // 5. GET /audit-logs
@@ -137,38 +253,14 @@ function handleLocalFallback(endpoint, options = {}) {
   if (endpoint.startsWith('/inventory') && method === 'GET') {
     const deletedSites = new Set(getStored(STORAGE_KEYS.DELETED_SITES, []).map(s => String(s).toUpperCase()));
     const deletedSkus = new Set(getStored(STORAGE_KEYS.DELETED_SKUS, []));
-    let inventory = getStored(STORAGE_KEYS.INVENTORY, []);
+    let inventory = getStored(STORAGE_KEYS.INVENTORY, null);
     
-    // Auto-sync from POs only if user has not explicitly purged inventory/SKUs
-    if (inventory.length === 0 && deletedSkus.size === 0) {
-      const pos = getStored(STORAGE_KEYS.POS, []);
-      const initialStocks = [];
-      pos.forEach(po => {
-        if (deletedSites.has((po.project_site_id || '').toUpperCase())) return;
-        (po.items || []).forEach((it, idx) => {
-          const qty = Number(it.quantity || 1);
-          const minReorder = Math.max(5, Math.round(qty * 0.2));
-          initialStocks.push({
-            stock_id: `stk-${po.po_id}-${idx}`,
-            site_id: po.project_site_id || 'SITE-USM',
-            project_name: po.project_name || 'Project Site',
-            item_code: it.item_code || `MAT-00${idx + 1}`,
-            description: it.description || 'Material',
-            current_quantity: qty,
-            unit: it.unit || 'Units',
-            min_reorder_level: minReorder,
-            reorder_quantity: qty,
-            stock_status: qty <= minReorder ? 'CRITICAL_LOW' : 'OPTIMAL',
-            status_label: qty <= minReorder ? 'CRITICAL: REORDER REQUIRED' : 'HEALTHY STOCK LEVEL',
-            last_delivery_date: po.issue_date || new Date().toISOString().split('T')[0],
-            unit_price: it.unit_price || 0
-          });
-        });
-      });
-      if (initialStocks.length > 0) {
-        inventory = initialStocks;
-        setStored(STORAGE_KEYS.INVENTORY, inventory);
-      }
+    if (inventory === null) {
+      inventory = [
+        { stock_id: 'STK-MADINA-01', site_id: 'SITE-MADINA', project_name: 'MADINA', item_code: 'MAT-GARD-01', description: 'Gardenia Classic 400g', current_quantity: 0.0, unit: 'Loaf', min_reorder_level: 5.0, reorder_quantity: 10.0, stock_status: 'AWAITING_DELIVERY', status_label: 'AWAITING GATE DELIVERY (DO PENDING)', last_delivery_date: null, unit_price: 15.0 },
+        { stock_id: 'STK-MADINA-02', site_id: 'SITE-MADINA', project_name: 'MADINA', item_code: 'MAT-GARD-02', description: 'Gardenia Wholemeal 400g', current_quantity: 0.0, unit: 'Loaf', min_reorder_level: 5.0, reorder_quantity: 8.0, stock_status: 'AWAITING_DELIVERY', status_label: 'AWAITING GATE DELIVERY (DO PENDING)', last_delivery_date: null, unit_price: 15.0 }
+      ];
+      setStored(STORAGE_KEYS.INVENTORY, inventory);
     }
 
     // Filter out deleted sites and deleted SKUs
@@ -294,8 +386,7 @@ function handleLocalFallback(endpoint, options = {}) {
         updatedInventory[existingIdx] = {
           ...updatedInventory[existingIdx],
           reorder_quantity: batchQty,
-          min_reorder_level: minReorder,
-          last_delivery_date: newPo.issue_date
+          min_reorder_level: minReorder
         };
       } else {
         updatedInventory.push({
@@ -308,9 +399,9 @@ function handleLocalFallback(endpoint, options = {}) {
           unit: it.unit || 'Units',
           min_reorder_level: minReorder,
           reorder_quantity: batchQty,
-          stock_status: 'CRITICAL_LOW',
-          status_label: 'PENDING FIRST DELIVERY INTAKE',
-          last_delivery_date: newPo.issue_date,
+          stock_status: 'AWAITING_DELIVERY',
+          status_label: 'AWAITING GATE DELIVERY (DO PENDING)',
+          last_delivery_date: null,
           unit_price: it.unit_price || 0
         });
       }
@@ -655,7 +746,12 @@ function handleLocalFallback(endpoint, options = {}) {
     const targetPo = pos.find(p => p.po_id === body.po_id || p.project_site_id === body.site_id) || pos[0] || {};
     const doNumber = `DO-${Date.now().toString().slice(-4)}`;
     const items = body.extracted_line_items || [];
-    
+    const confidence = Number(body.confidence_score !== undefined ? body.confidence_score : 0.95);
+    const isFake = body.is_valid_do === false || confidence < 0.30 || body.status === 'REJECTED';
+    const isLowConfidence = !isFake && confidence < 0.85;
+
+    const doStatus = isFake ? 'REJECTED' : (isLowConfidence ? 'NEEDS_REVIEW' : 'CONFIRMED');
+
     // Record in STORAGE_KEYS.DOS for 3-Way Matching
     const dos = getStored(STORAGE_KEYS.DOS, []);
     const newDo = {
@@ -664,8 +760,9 @@ function handleLocalFallback(endpoint, options = {}) {
       po_id: targetPo.po_id,
       site_id: body.site_id || targetPo.project_site_id,
       delivery_date: new Date().toISOString().split('T')[0],
-      status: 'CONFIRMED',
-      items: items.map(it => ({
+      status: doStatus,
+      confidence: confidence,
+      items: isFake ? [] : items.map(it => ({
         item_code: it.item_code,
         description: it.description,
         quantity_received: Number(it.quantity_delivered || it.quantity_received || 0),
@@ -674,46 +771,54 @@ function handleLocalFallback(endpoint, options = {}) {
     };
     setStored(STORAGE_KEYS.DOS, [newDo, ...dos]);
 
-    // Increment inventory current_quantity
-    const inventory = getStored(STORAGE_KEYS.INVENTORY, []);
-    const updatedInventory = [...inventory];
-    items.forEach(it => {
-      const idx = updatedInventory.findIndex(s => s.site_id === (body.site_id || targetPo.project_site_id) && s.item_code === it.item_code);
-      if (idx >= 0) {
-        const qtyReceived = Number(it.quantity_delivered || it.quantity_received || 0);
-        const newQty = (Number(updatedInventory[idx].current_quantity) || 0) + qtyReceived;
-        updatedInventory[idx] = {
-          ...updatedInventory[idx],
-          current_quantity: newQty,
-          last_delivery_date: new Date().toISOString().split('T')[0],
-          stock_status: newQty <= Number(updatedInventory[idx].min_reorder_level) ? 'CRITICAL_LOW' : 'OPTIMAL',
-          status_label: newQty <= Number(updatedInventory[idx].min_reorder_level) ? 'CRITICAL: REORDER REQUIRED' : 'HEALTHY STOCK LEVEL'
-        };
-      }
-    });
-    setStored(STORAGE_KEYS.INVENTORY, updatedInventory);
+    // Increment inventory ONLY if CONFIRMED (NEVER for rejected fake images or unconfirmed low-confidence DOs!)
+    if (doStatus === 'CONFIRMED') {
+      const inventory = getStored(STORAGE_KEYS.INVENTORY, []);
+      const updatedInventory = [...inventory];
+      items.forEach(it => {
+        const idx = updatedInventory.findIndex(s => s.site_id === (body.site_id || targetPo.project_site_id) && s.item_code === it.item_code);
+        if (idx >= 0) {
+          const qtyReceived = Number(it.quantity_delivered || it.quantity_received || 0);
+          const newQty = (Number(updatedInventory[idx].current_quantity) || 0) + qtyReceived;
+          updatedInventory[idx] = {
+            ...updatedInventory[idx],
+            current_quantity: newQty,
+            last_delivery_date: new Date().toISOString().split('T')[0],
+            stock_status: newQty <= Number(updatedInventory[idx].min_reorder_level) ? 'CRITICAL_LOW' : 'OPTIMAL',
+            status_label: newQty <= Number(updatedInventory[idx].min_reorder_level) ? 'CRITICAL: REORDER REQUIRED' : 'HEALTHY STOCK LEVEL'
+          };
+        }
+      });
+      setStored(STORAGE_KEYS.INVENTORY, updatedInventory);
+    }
 
     // Audit log
     const logs = getStored(STORAGE_KEYS.AUDIT_LOGS, []);
     const newLog = {
       log_id: `log-${Date.now()}`,
-      action: 'DO_VERIFIED',
+      action: isFake ? 'DO_REJECTED' : (isLowConfidence ? 'DO_NEEDS_REVIEW' : 'DO_VERIFIED'),
       actor_id: 'SITE_SUPERVISOR_DAVE',
       actor_role: 'SITE_SUPERVISOR',
-      details: `Verified Delivery Order ${doNumber} at ${body.site_name || targetPo.project_name || 'Job Site'}`,
+      details: isFake
+        ? `Rejected fake / non-DO image upload (Confidence: ${(confidence * 100).toFixed(0)}%) at ${body.site_name || targetPo.project_name || 'Job Site'}`
+        : `Processed Delivery Order ${doNumber} (Status: ${doStatus}, Confidence: ${(confidence * 100).toFixed(0)}%) at ${body.site_name || targetPo.project_name || 'Job Site'}`,
       timestamp: new Date().toISOString()
     };
     setStored(STORAGE_KEYS.AUDIT_LOGS, [newLog, ...logs]);
 
+    const recStatus = isFake ? 'DISCREPANCY_FLAGGED' : (isLowConfidence ? 'NEEDS_REVIEW' : 'MATCHED');
+
     return {
-      status: 'success',
+      status: isFake ? 'rejected' : (isLowConfidence ? 'needs_review' : 'success'),
       delivery_order: {
         do_number: doNumber,
         po_id: targetPo.po_id,
-        status: 'VERIFIED'
+        status: doStatus,
+        confidence: confidence
       },
       reconciliation: {
-        match_status: 'MATCHED'
+        match_status: recStatus,
+        rejection_reason: isFake ? 'Uploaded image failed AI Document Inspection (not a recognized physical Delivery Order)' : null
       }
     };
   }
@@ -767,137 +872,51 @@ export async function apiRequest(endpoint, options = {}) {
       if (text && text.trim().length > 0) {
         const remoteData = JSON.parse(text);
 
-        // For GET requests, perform smart merge with local persistent storage
+        // For GET requests, the live server response is authoritative.
+        // Update local cache directly so offline fallback stays synced.
         if (method === 'GET') {
-          const deletedSites = new Set(getStored(STORAGE_KEYS.DELETED_SITES, []).map(s => String(s).toUpperCase()));
-          const deletedSkus = new Set(getStored(STORAGE_KEYS.DELETED_SKUS, []));
-
           if (endpoint === '/pos') {
-            const localPos = getStored(STORAGE_KEYS.POS, []);
-            const mergedMap = new Map();
-
-            // KEY UNIQUELY BY po_number SO DUPLICATE ENTRIES FOR THE SAME PO ARE PERMANENTLY MERGED INTO 1!
-            localPos.forEach(p => {
-              const poNum = (p.po_number || p.po_id || '').toUpperCase().trim();
-              const siteKey = (p.project_site_id || '').toUpperCase();
-              if (poNum && !deletedSites.has(siteKey)) {
-                mergedMap.set(poNum, p);
-              }
-            });
-
             if (Array.isArray(remoteData)) {
-              remoteData.forEach(p => {
-                const poNum = (p.po_number || p.po_id || '').toUpperCase().trim();
-                const siteKey = (p.project_site_id || '').toUpperCase();
-                if (poNum && !deletedSites.has(siteKey)) {
-                  const existing = mergedMap.get(poNum);
-                  mergedMap.set(poNum, {
-                    ...existing,
-                    ...p,
-                    po_number: p.po_number || existing?.po_number,
-                    po_id: p.po_id || existing?.po_id,
-                    items: p.items || existing?.items || []
-                  });
-                }
-              });
+              setStored(STORAGE_KEYS.POS, remoteData);
+              return remoteData;
             }
-
-            const merged = Array.from(mergedMap.values());
-            setStored(STORAGE_KEYS.POS, merged);
-            return merged;
           }
 
           if (endpoint === '/sites') {
-            const localSites = getStored(STORAGE_KEYS.SITES, []);
-            const mergedMap = new Map();
-
-            localSites.forEach(s => {
-              const sid = (s.site_id || '').toUpperCase().trim();
-              if (sid && !deletedSites.has(sid)) {
-                mergedMap.set(sid, s);
-              }
-            });
-
             if (Array.isArray(remoteData)) {
-              remoteData.forEach(s => {
-                const sid = (s.site_id || '').toUpperCase().trim();
-                if (sid && !deletedSites.has(sid)) {
-                  mergedMap.set(sid, s);
-                }
-              });
+              setStored(STORAGE_KEYS.SITES, remoteData);
+              return remoteData;
             }
-
-            const merged = Array.from(mergedMap.values());
-            setStored(STORAGE_KEYS.SITES, merged);
-            return merged;
           }
 
           if (endpoint === '/reconciliations') {
-            const localRecs = getStored(STORAGE_KEYS.RECONCILIATIONS, []);
-            if (Array.isArray(remoteData) && remoteData.length > 0) {
-              const mergedMap = new Map();
-              localRecs.forEach(r => mergedMap.set(r.reconciliation_id, r));
-              remoteData.forEach(r => mergedMap.set(r.reconciliation_id, r));
-              const merged = Array.from(mergedMap.values()).filter(r => !deletedSites.has((r.site_id || '').toUpperCase()));
-              setStored(STORAGE_KEYS.RECONCILIATIONS, merged);
-              return merged;
-            } else if (localRecs.length > 0) {
-              return localRecs.filter(r => !deletedSites.has((r.site_id || '').toUpperCase()));
+            if (Array.isArray(remoteData)) {
+              setStored(STORAGE_KEYS.RECONCILIATIONS, remoteData);
+              return remoteData;
             }
-            return (remoteData || []).filter(r => !deletedSites.has((r.site_id || '').toUpperCase()));
           }
 
           if (endpoint.startsWith('/inventory')) {
-            const localInv = getStored(STORAGE_KEYS.INVENTORY, []);
-            const mergedMap = new Map();
-
-            localInv.forEach(i => {
-              const siteKey = (i.site_id || '').toUpperCase();
-              if (!deletedSites.has(siteKey) &&
-                  !deletedSkus.has(i.stock_id) &&
-                  !deletedSkus.has(i.item_code) &&
-                  !deletedSkus.has(`${i.site_id}-${i.item_code}`)) {
-                mergedMap.set(i.stock_id || `${i.site_id}-${i.item_code}`, i);
-              }
-            });
-
             if (Array.isArray(remoteData)) {
-              remoteData.forEach(i => {
-                const siteKey = (i.site_id || '').toUpperCase();
-                if (!deletedSites.has(siteKey) &&
-                    !deletedSkus.has(i.stock_id) &&
-                    !deletedSkus.has(i.item_code) &&
-                    !deletedSkus.has(`${i.site_id}-${i.item_code}`)) {
-                  mergedMap.set(i.stock_id || `${i.site_id}-${i.item_code}`, i);
-                }
-              });
+              setStored(STORAGE_KEYS.INVENTORY, remoteData);
+              const match = endpoint.match(/[?&]site_id=([^&]+)/);
+              const siteFilter = match ? decodeURIComponent(match[1]) : null;
+              if (siteFilter && siteFilter !== 'ALL') {
+                return remoteData.filter(s => (s.site_id || '').toUpperCase() === siteFilter.toUpperCase());
+              }
+              return remoteData;
             }
-
-            const merged = Array.from(mergedMap.values());
-            setStored(STORAGE_KEYS.INVENTORY, merged);
-
-            const match = endpoint.match(/[?&]site_id=([^&]+)/);
-            const siteFilter = match ? decodeURIComponent(match[1]) : null;
-            if (siteFilter && siteFilter !== 'ALL') {
-              return merged.filter(s => s.site_id === siteFilter);
-            }
-            return merged;
           }
 
           if (endpoint === '/hud') {
-            const pos = getStored(STORAGE_KEYS.POS, []);
-            if ((!remoteData || remoteData.total_active_pos === 0) && pos.length > 0) {
-              return handleLocalFallback('/hud', options);
-            }
             return remoteData;
           }
 
           if (endpoint === '/audit-logs') {
-            const localLogs = getStored(STORAGE_KEYS.AUDIT_LOGS, []);
-            if (Array.isArray(remoteData) && remoteData.length > 0) {
+            if (Array.isArray(remoteData)) {
+              setStored(STORAGE_KEYS.AUDIT_LOGS, remoteData);
               return remoteData;
             }
-            return localLogs;
           }
         }
 

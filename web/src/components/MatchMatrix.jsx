@@ -154,12 +154,12 @@ export default function MatchMatrix({
 
             {activeRec.match_status === 'DISCREPANCY_FLAGGED' && (
               <span className="status-pill pill-rose">
-                <AlertTriangle size={12} /> Discrepancy (${blockedTotal.toLocaleString(undefined, { minimumFractionDigits: 2 })} Blocked)
+                <AlertTriangle size={12} /> Discrepancy (RM {blockedTotal.toLocaleString(undefined, { minimumFractionDigits: 2 })} Blocked)
               </span>
             )}
             {activeRec.match_status === 'PARTIALLY_APPROVED' && (
               <span className="status-pill pill-green">
-                <Split size={12} /> Short-Pay Approved (${verifiedTotal.toLocaleString(undefined, { minimumFractionDigits: 2 })} Released)
+                <Split size={12} /> Short-Pay Approved (RM {verifiedTotal.toLocaleString(undefined, { minimumFractionDigits: 2 })} Released)
               </span>
             )}
             {activeRec.match_status === 'READY_FOR_APPROVAL' && (
@@ -208,7 +208,7 @@ export default function MatchMatrix({
           <div>
             <div style={{ fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>PO Contract Value</div>
             <div className="tabular-nums" style={{ fontWeight: '600', color: 'var(--accent-blue)', fontSize: '15px', marginTop: '2px' }}>
-              ${(activeRec.total_po_amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+              RM {(activeRec.total_po_amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
             </div>
             <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Ref: {activeRec.po_number}</div>
           </div>
@@ -216,7 +216,7 @@ export default function MatchMatrix({
           <div>
             <div style={{ fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Invoice Billed Claim</div>
             <div className="tabular-nums" style={{ fontWeight: '600', color: activeRec.has_discrepancy ? 'var(--accent-amber)' : '#FFF', fontSize: '15px', marginTop: '2px' }}>
-              ${(activeRec.invoice_amount || activeRec.total_billed_amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+              RM {(activeRec.invoice_amount || activeRec.total_billed_amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
             </div>
             <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Invoice #{activeRec.invoice_number}</div>
           </div>
@@ -380,13 +380,13 @@ export default function MatchMatrix({
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
                   <span style={{ color: 'var(--text-muted)' }}>Verified Payable (Deliveries Received):</span>
                   <strong style={{ color: 'var(--accent-emerald)', fontFamily: 'var(--font-mono)' }}>
-                    ${verifiedTotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                    RM {verifiedTotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                   </strong>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                   <span style={{ color: 'var(--text-muted)' }}>Withheld Disputed Variance:</span>
                   <strong style={{ color: 'var(--accent-rose)', fontFamily: 'var(--font-mono)' }}>
-                    ${(activeRec.total_overpayment_blocked || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                    RM {(activeRec.total_overpayment_blocked || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
                   </strong>
                 </div>
               </div>

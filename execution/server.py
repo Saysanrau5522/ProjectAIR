@@ -592,8 +592,8 @@ class ProjectAIRRequestHandler(BaseHTTPRequestHandler):
                     INSERT INTO inventory_stocks (
                         stock_id, site_id, item_code, description, current_quantity,
                         unit, min_reorder_level, reorder_quantity, last_delivery_date
-                    ) VALUES (?, ?, ?, ?, 0.0, ?, ?, ?, ?)
-                """, (stock_id, project_site_id, item_code, desc, unit, min_reorder, batch_qty, issue_date))
+                    ) VALUES (?, ?, ?, ?, 0.0, ?, ?, ?, NULL)
+                """, (stock_id, project_site_id, item_code, desc, unit, min_reorder, batch_qty))
 
         # Automatically generate a signed scoped QR token for this PO & Site!
         token = generate_scoped_token(
@@ -713,7 +713,7 @@ class ProjectAIRRequestHandler(BaseHTTPRequestHandler):
         token = body.get("token")
         supervisor_phone = body.get("supervisor_phone", "+1-555-SITE")
         image_base64 = body.get("image_base64", "")
-        filename = body.get("filename", "do_upload.jpg")
+        filename = body.get("filename") or body.get("file_name") or (body.get("file_path", "").split("/")[-1]) or "do_upload.jpg"
         
         # Verify scoped token or fallback to site-level selection / 6-digit PIN
         po_id = None
@@ -754,9 +754,11 @@ class ProjectAIRRequestHandler(BaseHTTPRequestHandler):
         pos = execute_query("SELECT * FROM purchase_orders WHERE po_id = ?", (po_id,))
         po_data = pos[0] if pos else {}
         
-        sim_low_conf = body.get("simulate_low_conf", False)
-        
         # Process document through Vision & Schema validator
+        client_status = body.get("status")
+        is_client_invalid = body.get("is_valid_do") is False or client_status == "REJECTED" or float(body.get("confidence_score", 1.0)) < 0.30
+        sim_low_conf = body.get("simulate_low_conf", False) or client_status == "NEEDS_REVIEW" or (0.30 <= float(body.get("confidence_score", 1.0)) < 0.85)
+
         extraction_result = process_document(
             image_bytes=img_bytes,
             filename=filename,
@@ -764,7 +766,10 @@ class ProjectAIRRequestHandler(BaseHTTPRequestHandler):
                 "po_reference": po_data.get("po_number", "PO-2026-001"),
                 "supplier_name": po_data.get("supplier_name", "Supplier Corp"),
                 "quantity": float(body.get("override_quantity", 800.0)),
-                "simulate_low_conf": sim_low_conf
+                "simulate_low_conf": sim_low_conf,
+                "is_valid_do": not is_client_invalid,
+                "status": "REJECTED" if is_client_invalid else ("NEEDS_REVIEW" if sim_low_conf else "CONFIRMED"),
+                "confidence_score": float(body.get("confidence_score", 0.95))
             }
         )
         
@@ -797,19 +802,20 @@ class ProjectAIRRequestHandler(BaseHTTPRequestHandler):
                 item_drop_site, item_drop_loc
             ))
             
+        audit_action = 'DO_REJECTED' if status == 'REJECTED' else ('DO_FLAGGED_FOR_REVIEW' if status == 'NEEDS_REVIEW' else 'DO_INGESTED')
         cursor.execute("""
             INSERT INTO audit_logs (entity_type, entity_id, actor_id, actor_role, action, after_state, metadata)
-            VALUES ('DO', ?, ?, 'SITE_SUPERVISOR', 'DO_INGESTED', ?, ?)
+            VALUES ('DO', ?, ?, 'SITE_SUPERVISOR', ?, ?, ?)
         """, (
-            do_id, supervisor_phone,
+            do_id, supervisor_phone, audit_action,
             f"Status: {status}, Confidence: {confidence:.2f}",
-            f"Image saved: {image_url}"
+            f"Image saved: {image_url} (Filename: {filename})"
         ))
         
         conn.commit()
         conn.close()
         
-        # Zero-Entry Automated Site Inventory Update if CONFIRMED
+        # Zero-Entry Automated Site Inventory Update ONLY IF CONFIRMED (NEVER for rejected fake images!)
         if status == "CONFIRMED":
             try:
                 increment_stock_from_do(do_id)
@@ -821,12 +827,23 @@ class ProjectAIRRequestHandler(BaseHTTPRequestHandler):
         for inv in invoices:
             run_reconciliation(po_id, inv["invoice_id"], actor_id=supervisor_phone)
             
+        rec_status = 'DISCREPANCY_FLAGGED' if status == 'REJECTED' else ('NEEDS_REVIEW' if status == 'NEEDS_REVIEW' else 'MATCHED')
+        
         self._send_json({
+            "status": "rejected" if status == "REJECTED" else ("needs_review" if status == "NEEDS_REVIEW" else "success"),
             "do_id": do_id,
             "do_number": do_number,
             "po_id": po_id,
-            "status": status,
-            "confidence": confidence,
+            "delivery_order": {
+                "do_number": do_number,
+                "po_id": po_id,
+                "status": status,
+                "confidence": confidence
+            },
+            "reconciliation": {
+                "match_status": rec_status,
+                "rejection_reason": extraction_result.get("rejection_reason")
+            },
             "extraction": extraction_result["extraction"]
         })
 

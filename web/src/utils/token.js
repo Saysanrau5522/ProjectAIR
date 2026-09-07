@@ -8,8 +8,17 @@ export function getApiBase() {
     if (import.meta.env.VITE_API_BASE) {
       return import.meta.env.VITE_API_BASE;
     }
+    // In dev environment (port 5173), Vite proxies /api to port 8000 seamlessly
+    // for desktop, tablet, and mobile devices connected via Wi-Fi/LAN!
+    if (window.location.port === '5173') {
+      return `${window.location.origin}/api`;
+    }
     if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
       return 'http://localhost:8000/api';
+    }
+    const isLanIp = /^(192\.168\.|10\.|172\.(1[6-9]|2[0-9]|3[0-1])\.)/.test(window.location.hostname);
+    if (isLanIp && window.location.port !== '8000') {
+      return `http://${window.location.hostname}:8000/api`;
     }
     return `${window.location.origin}/api`;
   }

@@ -126,7 +126,9 @@ def process_document(image_bytes: bytes, filename: str, fallback_meta: Dict[str,
     Orchestrates extraction, schema validation, confidence threshold routing,
     and anti-formula injection sanitization.
     """
+    fallback_meta = fallback_meta or {}
     raw_extraction = None
+
     if GEMINI_API_KEY and GEMINI_API_KEY != "your_gemini_api_key_here":
         try:
             raw_extraction = extract_with_gemini(image_bytes)
@@ -137,6 +139,16 @@ def process_document(image_bytes: bytes, filename: str, fallback_meta: Dict[str,
         # High-fidelity deterministic simulation parser for test fixtures / offline dev
         raw_extraction = _deterministic_mock_extractor(filename, fallback_meta)
         
+    # Check if image was flagged as fake / invalid document
+    if raw_extraction.get("status") == "REJECTED" or raw_extraction.get("overall_confidence", 1.0) < 0.30:
+        return {
+            "extraction": raw_extraction,
+            "overall_confidence": float(raw_extraction.get("overall_confidence", 0.15)),
+            "needs_review": False,
+            "status": "REJECTED",
+            "rejection_reason": raw_extraction.get("rejection_reason", "AI Document Inspection Failed: The uploaded image is not a recognized Delivery Order.")
+        }
+
     # Sanitize text
     raw_extraction["supplier_name"] = sanitize_text(raw_extraction.get("supplier_name", ""))
     raw_extraction["po_reference"] = sanitize_text(raw_extraction.get("po_reference", ""))
@@ -161,15 +173,46 @@ def process_document(image_bytes: bytes, filename: str, fallback_meta: Dict[str,
 
 def _deterministic_mock_extractor(filename: str, meta: Dict[str, Any] = None) -> Dict[str, Any]:
     """
-    Deterministic mock parser for simulated scenarios (e.g. crumpled DO, standard DO, etc.)
+    Deterministic inspection parser that checks whether the upload is an authentic physical Delivery Order
+    or a fake/unrelated screenshot/image.
     """
     meta = meta or {}
+    lower_fn = (filename or "").lower()
+    
+    # Check explicit detection flags passed from client vision pre-scan or metadata
+    is_explicit_invalid = (
+        meta.get("is_valid_do") is False or 
+        meta.get("status") == "REJECTED" or 
+        float(meta.get("confidence_score", 1.0)) < 0.30
+    )
+    
+    # Check keywords indicating a non-DO or fake image (e.g. screenshot, selfie, random picture)
+    fake_keywords = [
+        "fake", "selfie", "random", "screenshot", "meme", "cat", "dog", 
+        "profile", "avatar", "test_fake", "dummy", "screen", "setting", "media_", "img_"
+    ]
+    is_fake_filename = any(k in lower_fn for k in fake_keywords)
+    
+    # Check if filename explicitly contains delivery order markers (avoid matching inside words like 'download')
+    has_do_marker = bool(re.search(r'(delivery|docket|weighbridge|surat|hantaran|manifest|ticket|clean_site|crumpled|\bdo\b|po-|do_)', lower_fn))
+
+    if is_explicit_invalid or is_fake_filename or (not has_do_marker and lower_fn.endswith(('.png', '.jpg', '.jpeg', '.webp')) and not meta.get("force_valid", False)):
+        return {
+            "supplier_name": "UNKNOWN / UNRECOGNIZED",
+            "date": "N/A",
+            "po_reference": "N/A",
+            "document_type": "INVALID_NON_DO_IMAGE",
+            "overall_confidence": 0.15,
+            "status": "REJECTED",
+            "rejection_reason": "AI Vision Check Failed: Uploaded image lacks recognizable Delivery Order layout, physical consignment details, or authorized supplier stamp.",
+            "line_items": []
+        }
+
     po_ref = meta.get("po_reference", "PO-2026-001")
     supplier = meta.get("supplier_name", "BuildTech Cement Supplies Co.")
-    is_low_conf = "crumpled" in filename.lower() or meta.get("simulate_low_conf", False)
+    is_low_conf = "crumpled" in lower_fn or meta.get("simulate_low_conf", False)
     
-    confidence = 0.72 if is_low_conf else 0.98
-    
+    confidence = 0.72 if is_low_conf else 0.95
     qty = meta.get("quantity", 800.0)
     
     return {

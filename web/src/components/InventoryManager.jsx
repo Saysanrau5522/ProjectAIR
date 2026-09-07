@@ -15,7 +15,9 @@ import {
   Trash2,
   X,
   Save,
-  CheckCircle
+  CheckCircle,
+  Clock,
+  Info
 } from 'lucide-react';
 
 import { getApiBase } from '../utils/token';
@@ -284,6 +286,25 @@ export default function InventoryManager({ onRefreshLedger }) {
         </div>
       )}
 
+      {/* Physical Intake Rule Banner */}
+      <div style={{
+        background: 'rgba(59, 130, 246, 0.08)',
+        border: '1px solid rgba(59, 130, 246, 0.25)',
+        borderRadius: '8px',
+        padding: '12px 16px',
+        marginBottom: '16px',
+        display: 'flex',
+        alignItems: 'center',
+        gap: '12px',
+        fontSize: '13px',
+        color: 'var(--text-secondary)'
+      }}>
+        <Info size={18} color="var(--accent-blue)" style={{ flexShrink: 0 }} />
+        <div>
+          <strong style={{ color: '#fff' }}>Physical Intake Rule:</strong> Submitting a Purchase Order (PO) registers items on order, but <strong>on-hand physical stock remains 0.00</strong> until the supplier arrives and the site supervisor scans and verifies the physical <strong>Delivery Order (DO)</strong> docket at the site gate.
+        </div>
+      </div>
+
       {/* Inventory Table */}
       <div className="modern-card">
         <div className="modern-table-wrapper">
@@ -330,20 +351,26 @@ export default function InventoryManager({ onRefreshLedger }) {
                       </td>
 
                       <td>
-                        <div className="tabular-nums" style={{ fontSize: '14px', fontWeight: '600', color: '#FFF' }}>
-                          {curr.toLocaleString()} <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{stock.unit}</span>
+                        <div className="tabular-nums" style={{ fontSize: '14px', fontWeight: '600', color: curr > 0 ? '#FFF' : 'var(--text-muted)' }}>
+                          {curr.toLocaleString()} <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{stock.unit} on-site</span>
                         </div>
-                        {/* Progress bar */}
-                        <div style={{ width: '110px', height: '5px', background: 'rgba(255,255,255,0.08)', borderRadius: '3px', marginTop: '6px', overflow: 'hidden' }}>
-                          <div 
-                            style={{ 
-                              width: `${pct}%`, 
-                              height: '100%', 
-                              background: stock.stock_status === 'CRITICAL_LOW' ? 'var(--accent-rose)' : stock.stock_status === 'LOW' ? 'var(--accent-amber)' : 'var(--accent-emerald)',
-                              transition: 'width 0.3s ease'
-                            }} 
-                          />
-                        </div>
+                        {curr === 0 ? (
+                          <div style={{ fontSize: '11px', color: 'var(--accent-cyan)', marginTop: '2px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                            <Clock size={10} /> +{stock.reorder_quantity || 0} {stock.unit} on PO (Pending DO)
+                          </div>
+                        ) : (
+                          /* Progress bar */
+                          <div style={{ width: '110px', height: '5px', background: 'rgba(255,255,255,0.08)', borderRadius: '3px', marginTop: '6px', overflow: 'hidden' }}>
+                            <div 
+                              style={{ 
+                                width: `${pct}%`, 
+                                height: '100%', 
+                                background: stock.stock_status === 'CRITICAL_LOW' ? 'var(--accent-rose)' : stock.stock_status === 'LOW' ? 'var(--accent-amber)' : 'var(--accent-emerald)',
+                                transition: 'width 0.3s ease'
+                              }} 
+                            />
+                          </div>
+                        )}
                       </td>
 
                       <td>
@@ -427,17 +454,19 @@ export default function InventoryManager({ onRefreshLedger }) {
                       </td>
 
                       <td>
-                        {stock.stock_status === 'CRITICAL_LOW' && (
+                        {(stock.stock_status === 'AWAITING_DELIVERY' || (curr === 0 && !stock.last_delivery_date)) ? (
+                          <span className="status-pill pill-cyan" style={{ background: 'rgba(6, 182, 212, 0.12)', color: '#06b6d4', border: '1px solid rgba(6, 182, 212, 0.3)' }} title="Material ordered via PO. Physical stock intake occurs upon gate DO scanning.">
+                            <Clock size={11} /> Awaiting Gate DO
+                          </span>
+                        ) : stock.stock_status === 'CRITICAL_LOW' ? (
                           <span className="status-pill pill-rose">
                             <AlertTriangle size={11} /> Critical Low
                           </span>
-                        )}
-                        {stock.stock_status === 'LOW' && (
+                        ) : stock.stock_status === 'LOW' ? (
                           <span className="status-pill pill-yellow">
                             <AlertTriangle size={11} /> Low Stock
                           </span>
-                        )}
-                        {stock.stock_status === 'HEALTHY' && (
+                        ) : (
                           <span className="status-pill pill-green">
                             <CheckCircle2 size={11} /> Healthy
                           </span>
@@ -445,7 +474,13 @@ export default function InventoryManager({ onRefreshLedger }) {
                       </td>
 
                       <td className="tabular-nums" style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
-                        {stock.last_delivery_date || 'N/A'}
+                        {stock.last_delivery_date ? (
+                          stock.last_delivery_date
+                        ) : (
+                          <span style={{ color: 'var(--accent-amber)', fontSize: '11px', display: 'inline-flex', alignItems: 'center', gap: '3px' }} title="No DO received yet. Materials arrive via supplier delivery docket.">
+                            <Clock size={11} /> DO Pending
+                          </span>
+                        )}
                       </td>
 
                       <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
@@ -533,7 +568,7 @@ export default function InventoryManager({ onRefreshLedger }) {
                   <div>
                     <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Estimated PO Value</div>
                     <div className="tabular-nums" style={{ fontWeight: '600', color: 'var(--accent-emerald)', marginTop: '2px' }}>
-                      ${(reorderSuccessModal.total_amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                      RM {(reorderSuccessModal.total_amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
                     </div>
                   </div>
                 </div>

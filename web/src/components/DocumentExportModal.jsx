@@ -616,7 +616,7 @@ export default function DocumentExportModal({
                               <td style={{ textAlign: 'right' }} className="doc-mono">{Number(item.po_unit_price || 0).toFixed(2)}</td>
                               <td style={{ textAlign: 'right' }} className="doc-mono">{deliveredQty}</td>
                               <td style={{ textAlign: 'right' }} className="doc-mono">{billedQty}</td>
-                              <td style={{ textAlign: 'right' }} className="doc-mono" style={{ color: variance > 0 ? '#dc2626' : '#64748b', fontWeight: variance > 0 ? '700' : 'normal' }}>
+                              <td className="doc-mono" style={{ textAlign: 'right', color: variance > 0 ? '#dc2626' : '#64748b', fontWeight: variance > 0 ? '700' : 'normal' }}>
                                 {variance > 0 ? `+${variance} (Over)` : variance < 0 ? `${variance}` : '0.00'}
                               </td>
                               <td style={{ textAlign: 'right' }} className="doc-mono doc-bold">
